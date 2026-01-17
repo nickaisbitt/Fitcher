@@ -20,7 +20,7 @@ const mimeTypes = {
 
 const clientConfig = {
   DEFAULT_AI_MODEL: process.env.DEFAULT_AI_MODEL || 'anthropic/claude-3.5-sonnet',
-  APP_ENV: process.env.NODE_ENV || 'development'
+  APP_ENV: process.env.NODE_ENV || 'development',  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',  KRAKEN_API_KEY: process.env.KRAKEN_API_KEY || '',  KRAKEN_API_SECRET: process.env.KRAKEN_API_SECRET || '',  BINANCE_API_KEY: process.env.BINANCE_API_KEY || '',  BINANCE_API_SECRET: process.env.BINANCE_API_SECRET || '',  COINBASE_API_KEY: process.env.COINBASE_API_KEY || '',  COINBASE_API_SECRET: process.env.COINBASE_API_SECRET || '',  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',  KRAKEN_API_KEY: process.env.KRAKEN_API_KEY || '',  KRAKEN_API_SECRET: process.env.KRAKEN_API_SECRET || '',  BINANCE_API_KEY: process.env.BINANCE_API_KEY || '',  BINANCE_API_SECRET: process.env.BINANCE_API_SECRET || '',,  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',  KRAKEN_API_KEY: process.env.KRAKEN_API_KEY || '',  KRAKEN_API_SECRET: process.env.KRAKEN_API_SECRET || '',,  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
 };
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
