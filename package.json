@@ -1,12 +1,16 @@
 {
-  "name": "fitcher",
-  "version": "1.0.0",
-  "description": "Fitcher - AI-Powered Crypto Trading with Nordic Design",
-  "scripts": {
-    "start": "npx serve -s . -l $PORT",
-    "dev": "npx serve -s . -l 3000"
-  },
-  "keywords": ["crypto", "trading", "bot", "ai", "kraken", "binance", "coinbase"],
-  "author": "",
-  "license": "MIT"
+    "name": "fitcher",
+    "version": "1.0.0",
+    "description": "Fitcher - AI-Powered Crypto Trading with Nordic Design",
+    "main": "server.js",
+    "scripts": {
+          "start": "node server.js",
+          "dev": "node server.js"
+    },
+    "keywords": ["crypto", "trading", "bot", "ai", "kraken", "binance", "coinbase"],
+    "author": "",
+    "license": "MIT",
+    "engines": {
+          "node": ">=18.0.0"
+    }
 }
