@@ -2039,7 +2039,7 @@ Provide a JSON response with:
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': window.location.href,
-          'X-Title': 'Kraken Trading Bot'
+          'X-Title': 'Fitcher Trading'
         },
         body: JSON.stringify({
           model: this.model,
@@ -2104,7 +2104,7 @@ Provide JSON with strategy improvements:
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': window.location.href,
-          'X-Title': 'Kraken Trading Bot'
+          'X-Title': 'Fitcher Trading'
         },
         body: JSON.stringify({
           model: this.model,

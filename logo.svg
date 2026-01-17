@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <!-- Nordic gradient - white to pale blue to deep blue -->
+    <linearGradient id="nordicGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#B8D4E8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4A90B8;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Glow effect -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Ice crystal gradient -->
+    <linearGradient id="iceGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#E8F4FC;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7FB3D3;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="200" cy="200" r="180" fill="#0D1B2A" />
+  <circle cx="200" cy="200" r="175" fill="none" stroke="url(#nordicGrad)" stroke-width="2" opacity="0.6"/>
+
+  <!-- Nordic F letterform - stylized like a runic/modern hybrid -->
+  <g filter="url(#glow)">
+    <!-- Main F stem -->
+    <path d="M140 100 L140 300 L160 300 L160 210 L240 210 L240 190 L160 190 L160 120 L260 120 L260 100 Z"
+          fill="url(#nordicGrad)" />
+
+    <!-- Decorative arrow/chart element pointing up (trading growth) -->
+    <path d="M220 150 L260 150 L260 130 L290 160 L260 190 L260 170 L220 170 Z"
+          fill="url(#iceGrad)" opacity="0.9"/>
+
+    <!-- Small ascending chart bars -->
+    <rect x="270" y="240" width="15" height="40" fill="#7FB3D3" opacity="0.7" rx="2"/>
+    <rect x="290" y="220" width="15" height="60" fill="#B8D4E8" opacity="0.8" rx="2"/>
+    <rect x="310" y="195" width="15" height="85" fill="#E8F4FC" opacity="0.9" rx="2"/>
+  </g>
+
+  <!-- Subtle snowflake/crystal accents -->
+  <g opacity="0.4" fill="#FFFFFF">
+    <circle cx="100" cy="120" r="3"/>
+    <circle cx="320" cy="100" r="2"/>
+    <circle cx="340" cy="280" r="2.5"/>
+    <circle cx="80" cy="260" r="2"/>
+  </g>
+
+  <!-- Outer ring accent -->
+  <circle cx="200" cy="200" r="190" fill="none" stroke="#4A90B8" stroke-width="1" opacity="0.3"/>
+</svg>

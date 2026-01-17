@@ -1,7 +1,7 @@
 {
-  "name": "kraken-ai-trading-bot",
+  "name": "fitcher",
   "version": "1.0.0",
-  "description": "AI-Powered Crypto Trading Bot with Multi-Exchange Support",
+  "description": "Fitcher - AI-Powered Crypto Trading with Nordic Design",
   "scripts": {
     "start": "npx serve -s . -l $PORT",
     "dev": "npx serve -s . -l 3000"

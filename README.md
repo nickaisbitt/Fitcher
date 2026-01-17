@@ -1,6 +1,15 @@
-# Kraken AI Trading Bot
+# Fitcher
 
-AI-powered cryptocurrency trading bot with multi-exchange support.
+<p align="center">
+  <img src="logo.svg" alt="Fitcher Logo" width="120" height="120">
+</p>
+
+<p align="center">
+  <strong>AI-Powered Crypto Trading</strong><br>
+  <em>Modern Nordic Design • Multi-Exchange • Intelligent Analysis</em>
+</p>
+
+---
 
 ## Features
 
@@ -20,20 +29,31 @@ AI-powered cryptocurrency trading bot with multi-exchange support.
 3. Click "Connect" to start receiving real-time prices
 4. (Optional) Add your OpenRouter API key for AI analysis
 
-## Deploy to Railway
+## Deploy
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template)
-
+### Railway
 ```bash
 npm install
 npm start
 ```
 
-## Files
+### Local Development
+```bash
+python3 build.py  # Rebuild index.html from JSX
+npx serve .       # Serve locally
+```
 
-- `index.html` - Main trading bot (standalone, no build required)
-- `kraken-trading-bot.jsx` - Source JSX file
-- `build.py` - Build script to regenerate index.html
+## Color Palette
+
+| Name | Hex | Usage |
+|------|-----|-------|
+| Nordic Dark | `#0D1B2A` | Background |
+| Nordic Deep | `#1B2838` | Cards |
+| Nordic Blue | `#4A90B8` | Accents |
+| Nordic Pale | `#7FB3D3` | Primary |
+| Nordic Ice | `#B8D4E8` | Highlights |
+| Nordic Frost | `#E8F4FC` | Text |
+| Nordic White | `#FFFFFF` | Headings |
 
 ## License
 
