@@ -1,0 +1,12 @@
+{
+  "name": "kraken-ai-trading-bot",
+  "version": "1.0.0",
+  "description": "AI-Powered Crypto Trading Bot with Multi-Exchange Support",
+  "scripts": {
+    "start": "npx serve -s . -l $PORT",
+    "dev": "npx serve -s . -l 3000"
+  },
+  "keywords": ["crypto", "trading", "bot", "ai", "kraken", "binance", "coinbase"],
+  "author": "",
+  "license": "MIT"
+}
