@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  apiKeys      ApiKey[]
+  orders       Order[]
+  positions    Position[]
+  strategies   TradingStrategy[]
+  tradingRules TradingRule[]
+  
+  @@map("users")
+}
+
+model ApiKey {
+  id        String   @id @default(uuid())
+  userId    String
+  exchange  String
+  apiKey    String
+  apiSecret String
+  label     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, exchange, label])
+  @@map("api_keys")
+}
+
+model Order {
+  id            String    @id @default(uuid())
+  userId        String
+  exchange      String
+  symbol        String
+  side          String    // BUY or SELL
+  type          String    // MARKET, LIMIT, STOP, STOP_LIMIT, OCO
+  status        String    // PENDING, OPEN, PARTIALLY_FILLED, FILLED, CANCELLED, REJECTED, EXPIRED
+  quantity      Decimal   @db.Decimal(20, 8)
+  filledQuantity Decimal  @db.Decimal(20, 8) @default(0)
+  price         Decimal?  @db.Decimal(20, 8)
+  stopPrice     Decimal?  @db.Decimal(20, 8)
+  limitPrice    Decimal?  @db.Decimal(20, 8)
+  averagePrice  Decimal?  @db.Decimal(20, 8)
+  timeInForce   String    @default("GTC") // GTC, IOC, FOK
+  clientOrderId String?
+  exchangeOrderId String?
+  commission    Decimal?  @db.Decimal(20, 8)
+  commissionAsset String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  filledAt      DateTime?
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([status])
+  @@index([exchange, symbol])
+  @@map("orders")
+}
+
+model Position {
+  id            String    @id @default(uuid())
+  userId        String
+  exchange      String
+  symbol        String
+  side          String    // LONG or SHORT
+  quantity      Decimal   @db.Decimal(20, 8)
+  entryPrice    Decimal   @db.Decimal(20, 8)
+  markPrice     Decimal?  @db.Decimal(20, 8)
+  liquidationPrice Decimal? @db.Decimal(20, 8)
+  margin        Decimal?  @db.Decimal(20, 8)
+  leverage      Decimal   @default(1) @db.Decimal(10, 2)
+  unrealizedPnl Decimal?  @db.Decimal(20, 8)
+  realizedPnl   Decimal   @default(0) @db.Decimal(20, 8)
+  isOpen        Boolean   @default(true)
+  openedAt      DateTime  @default(now())
+  closedAt      DateTime?
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, exchange, symbol, isOpen])
+  @@index([userId])
+  @@map("positions")
+}
+
+model TradingStrategy {
+  id          String    @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+  type        String    // TREND_FOLLOWING, MEAN_REVERSION, BREAKOUT, SCALPING, CUSTOM
+  isActive    Boolean   @default(false)
+  config      Json      // Strategy-specific configuration
+  riskConfig  Json      // Risk management configuration
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@map("trading_strategies")
+}
+
+model TradingRule {
+  id          String    @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+  isActive    Boolean   @default(true)
+  conditions  Json      // Array of rule conditions
+  actions     Json      // Array of actions to execute
+  priority    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@map("trading_rules")
+}

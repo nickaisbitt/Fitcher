@@ -116,11 +116,79 @@
         </div>
     </div>
 
+    <!-- Fitcher API Client -->
+    <script src="src/api-client.js"></script>
+    
     <script type="text/babel">
         // Make React hooks available globally
         const { useState, useEffect, useCallback, useRef } = React;
 
         // ==================== FITCHER AI TRADING BOT ====================
+        
+        // API Integration Hook
+        const useFitcherAPI = () => {
+            const [isAuthenticated, setIsAuthenticated] = useState(false);
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+
+            useEffect(() => {
+                // Check if already authenticated
+                if (window.fitcherAPI && window.fitcherAPI.isAuthenticated()) {
+                    setIsAuthenticated(true);
+                    // Load user profile
+                    window.fitcherAPI.getProfile()
+                        .then(data => {
+                            if (data.success) setUser(data.data);
+                        })
+                        .catch(console.error);
+                }
+            }, []);
+
+            const login = async (email, password) => {
+                setLoading(true);
+                setError(null);
+                try {
+                    const data = await window.fitcherAPI.login(email, password);
+                    if (data.success) {
+                        setIsAuthenticated(true);
+                        setUser(data.data.user);
+                        return { success: true };
+                    }
+                } catch (err) {
+                    setError(err.message);
+                    return { success: false, error: err.message };
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const signup = async (email, password, name) => {
+                setLoading(true);
+                setError(null);
+                try {
+                    const data = await window.fitcherAPI.signup(email, password, name);
+                    if (data.success) {
+                        setIsAuthenticated(true);
+                        setUser(data.data.user);
+                        return { success: true };
+                    }
+                } catch (err) {
+                    setError(err.message);
+                    return { success: false, error: err.message };
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const logout = () => {
+                window.fitcherAPI.logout();
+                setIsAuthenticated(false);
+                setUser(null);
+            };
+
+            return { isAuthenticated, user, loading, error, login, signup, logout };
+        };
 
 
 // ==================== CONSTANTS ====================
@@ -6710,9 +6778,163 @@ function KrakenTradingBot() {
 }
 
 
+        // ==================== AUTHENTICATION COMPONENT ====================
+        const AuthComponent = ({ onAuthenticated }) => {
+            const [isLogin, setIsLogin] = useState(true);
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [name, setName] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError(null);
+
+                try {
+                    let result;
+                    if (isLogin) {
+                        result = await window.fitcherAPI.login(email, password);
+                    } else {
+                        result = await window.fitcherAPI.signup(email, password, name);
+                    }
+
+                    if (result.success) {
+                        onAuthenticated();
+                    } else {
+                        setError(result.error || 'Authentication failed');
+                    }
+                } catch (err) {
+                    setError(err.message || 'Network error');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4">
+                    <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 p-8 w-full max-w-md">
+                        <div className="text-center mb-8">
+                            <div className="fitcher-logo text-4xl mb-2">Fitcher</div>
+                            <p className="text-slate-400">AI-Powered Crypto Trading</p>
+                        </div>
+
+                        {error && (
+                            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                                {error}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            {!isLogin && (
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-1">Name</label>
+                                    <input
+                                        type="text"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                                        placeholder="Your name"
+                                        required={!isLogin}
+                                    />
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-sm text-slate-400 mb-1">Email</label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                                    placeholder="you@example.com"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-slate-400 mb-1">Password</label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                                    placeholder="••••••••"
+                                    required
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 rounded-xl font-semibold text-white transition disabled:opacity-50"
+                            >
+                                {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
+                            </button>
+                        </form>
+
+                        <div className="mt-6 text-center">
+                            <button
+                                onClick={() => setIsLogin(!isLogin)}
+                                className="text-cyan-400 hover:text-cyan-300 text-sm"
+                            >
+                                {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+                            </button>
+                        </div>
+
+                        <div className="mt-6 pt-6 border-t border-slate-700/50 text-center">
+                            <button
+                                onClick={onAuthenticated}
+                                className="text-slate-500 hover:text-slate-400 text-xs"
+                            >
+                                Continue without account (Demo Mode)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==================== MAIN APP WITH AUTH ====================
+        const FitcherApp = () => {
+            const [isAuthenticated, setIsAuthenticated] = useState(false);
+            const [showAuth, setShowAuth] = useState(true);
+
+            useEffect(() => {
+                // Check if already authenticated
+                if (window.fitcherAPI && window.fitcherAPI.isAuthenticated()) {
+                    setIsAuthenticated(true);
+                    setShowAuth(false);
+                }
+            }, []);
+
+            const handleAuthenticated = () => {
+                setIsAuthenticated(true);
+                setShowAuth(false);
+            };
+
+            const handleLogout = () => {
+                window.fitcherAPI.logout();
+                setIsAuthenticated(false);
+                setShowAuth(true);
+            };
+
+            if (showAuth) {
+                return <AuthComponent onAuthenticated={handleAuthenticated} />;
+            }
+
+            return (
+                <div>
+                    {/* Add logout button to header */}
+                    <KrakenTradingBot />
+                </div>
+            );
+        };
+
         // ==================== RENDER APP ====================
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<KrakenTradingBot />);
+        root.render(<FitcherApp />);
     </script>
 </body>
 </html>
