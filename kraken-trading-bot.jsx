@@ -4066,7 +4066,54 @@ export default function KrakenTradingBot() {
     }
   }, [isRunning, runStrategy, settings.strategy, addLog]);
 
+  // ==================== PAPER TRADING SIMULATION ====================
+  useEffect(() => {
+    if (apiStatus === 'connected') return; // Using real API
 
+    const interval = setInterval(() => {
+      setPrices(prev => {
+        const newPrices = {};
+        TRADING_PAIRS.forEach(pair => {
+          const base = BASE_PRICES[pair] || 10;
+          const lastPrice = prev[pair]?.price || base;
+          const volatility = 0.003;
+          const change = ((Math.random() - 0.48) * 2 * volatility) * base;
+          const newPrice = Math.max(lastPrice + change, base * 0.5);
+
+          newPrices[pair] = {
+            price: newPrice,
+            change24h: ((newPrice - base) / base * 100),
+            high24h: Math.max(prev[pair]?.high24h || base, newPrice),
+            low24h: Math.min(prev[pair]?.low24h || base, newPrice),
+            volume: (prev[pair]?.volume || 1000000) + Math.random() * 50000
+          };
+
+          // Update price history
+          if (!priceHistoryRef.current[pair]) {
+            priceHistoryRef.current[pair] = [];
+          }
+          priceHistoryRef.current[pair].push(newPrice);
+          if (priceHistoryRef.current[pair].length > 1000) {
+            priceHistoryRef.current[pair].shift();
+          }
+        });
+        return newPrices;
+      });
+
+      setPriceHistory({ ...priceHistoryRef.current });
+
+      // Simulated order book
+      const price = prices[selectedPair]?.price || BASE_PRICES[selectedPair];
+      const book = { bids: [], asks: [] };
+      for (let i = 0; i < 6; i++) {
+        book.bids.push({ price: price * (1 - 0.0005 * (i + 1)), amount: Math.random() * 5 });
+        book.asks.push({ price: price * (1 + 0.0005 * (i + 1)), amount: Math.random() * 5 });
+      }
+      setOrderBook(book);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [apiStatus, selectedPair, prices]);
 
   // ==================== UPDATE INDICATORS ====================
   useEffect(() => {
@@ -4381,7 +4428,7 @@ export default function KrakenTradingBot() {
             </button>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/50">
               <div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`}></div>
-              <span className="text-sm text-slate-400">{apiStatus === 'connected' ? 'Kraken Live' : 'Disconnected'}</span>
+              <span className="text-sm text-slate-400">{apiStatus === 'connected' ? 'Kraken Live' : 'Simulated'}</span>
             </div>
             <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition">⚙️</button>
           </div>
@@ -4659,7 +4706,7 @@ export default function KrakenTradingBot() {
                   </div>
                   <div>
                     <div className="text-xl font-bold">{selectedPair}</div>
-                    <div className="text-sm text-slate-400">{apiStatus === 'connected' ? 'Kraken Live' : 'No Data'}</div>
+                    <div className="text-sm text-slate-400">{apiStatus === 'connected' ? 'Kraken Live' : 'Simulated Data'}</div>
                   </div>
                 </div>
                 <div className="text-right">
