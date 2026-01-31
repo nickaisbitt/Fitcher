@@ -5,7 +5,9 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "dev": "node src/app.js"
+    "dev": "node src/app.js",
+    "backtest": "node scripts/runBacktest.js",
+    "backtest:matrix": "node scripts/runBacktestMatrix.js"
   },
   "keywords": [
     "crypto",
@@ -33,6 +35,7 @@
     "helmet": "^7.1.0",
     "ioredis": "^5.3.2",
     "jsonwebtoken": "^9.0.2",
+    "parquetjs-lite": "^0.8.7",
     "pg": "^8.11.3",
     "prisma": "^5.7.0",
     "socket.io": "^4.6.1",

@@ -1,23 +1,61 @@
+const EventEmitter = require('events');
 const TradingRule = require('../models/tradingRule');
 const logger = require('../utils/logger');
 const redisClient = require('../utils/redis');
 
-class RuleEngine {
+class RuleEngine extends EventEmitter {
   constructor() {
+    super();
     this.rules = new Map();
     this.userRules = new Map();
     this.evaluationInterval = null;
     this.isRunning = false;
+    this.marketDataAggregator = null;
+    this.isProcessing = false;
   }
 
   // Initialize rule engine
-  async initialize() {
+  async initialize(marketDataAggregator = null) {
     logger.info('Initializing rule engine...');
+    
+    this.marketDataAggregator = marketDataAggregator;
+    
+    // Subscribe to market data events if aggregator provided
+    if (marketDataAggregator) {
+      marketDataAggregator.on('marketData', (data) => {
+        this.handleMarketData(data);
+      });
+      
+      marketDataAggregator.on('aggregatedPrice', (data) => {
+        this.handleAggregatedPrice(data);
+      });
+    }
     
     // Start evaluation loop
     this.startEvaluationLoop();
     
     logger.info('✅ Rule engine initialized');
+  }
+
+  // Handle real-time market data
+  handleMarketData(data) {
+    if (data.type === 'ticker') {
+      this.lastMarketData = this.lastMarketData || {};
+      this.lastMarketData[data.pair] = {
+        price: data.price,
+        bid: data.bid,
+        ask: data.ask,
+        volume: data.volume,
+        timestamp: data.timestamp,
+        exchange: data.exchange
+      };
+    }
+  }
+
+  // Handle aggregated price updates
+  handleAggregatedPrice(data) {
+    this.lastAggregatedData = this.lastAggregatedData || {};
+    this.lastAggregatedData[data.pair] = data;
   }
 
   // Create new trading rule
@@ -202,30 +240,49 @@ class RuleEngine {
 
   // Evaluate all active rules
   async evaluateRules(marketData, portfolioData, positionsData) {
+    // Prevent overlapping evaluations
+    if (this.isProcessing) {
+      logger.warn('Rule evaluation already in progress, skipping...');
+      return [];
+    }
+    
+    this.isProcessing = true;
     const triggeredRules = [];
 
-    for (const [ruleId, rule] of this.rules) {
-      if (rule.status !== 'active') continue;
+    try {
+      for (const [ruleId, rule] of this.rules) {
+        if (rule.status !== 'active') continue;
 
-      try {
-        const userId = rule.userId;
-        const portfolio = portfolioData[userId];
-        const positions = positionsData[userId];
+        try {
+          const userId = rule.userId;
+          const portfolio = portfolioData[userId];
+          const positions = positionsData[userId];
 
-        const result = rule.trigger(marketData, portfolio, positions);
+          const result = rule.trigger(marketData, portfolio, positions);
 
-        if (result.triggered) {
-          triggeredRules.push(result);
-          
-          // Persist updated rule state
-          await this.persistRule(rule);
+          if (result.triggered) {
+            triggeredRules.push(result);
+            
+            // Persist updated rule state
+            await this.persistRule(rule);
 
-          // Emit event for action execution
-          this.emit('ruleTriggered', result);
+            // Emit event for action execution
+            this.emit('ruleTriggered', {
+              ...result,
+              timestamp: Date.now()
+            });
+            
+            logger.info(`Rule ${ruleId} triggered`, {
+              ruleName: rule.name,
+              actions: result.actionResults?.length || 0
+            });
+          }
+        } catch (error) {
+          logger.error(`Error evaluating rule ${ruleId}:`, error);
         }
-      } catch (error) {
-        logger.error(`Error evaluating rule ${ruleId}:`, error);
       }
+    } finally {
+      this.isProcessing = false;
     }
 
     return triggeredRules;
@@ -244,12 +301,15 @@ class RuleEngine {
       if (!this.isRunning) return;
 
       try {
-        // In production, fetch real market data
-        const mockMarketData = this.generateMockMarketData();
+        // Use real market data if available, otherwise mock
+        const marketData = this.lastMarketData ?
+          { timestamp: Date.now(), pairs: this.lastMarketData } :
+          this.generateMockMarketData();
+        
         const mockPortfolioData = {};
         const mockPositionsData = {};
 
-        await this.evaluateRules(mockMarketData, mockPortfolioData, mockPositionsData);
+        await this.evaluateRules(marketData, mockPortfolioData, mockPositionsData);
       } catch (error) {
         logger.error('Error in rule evaluation loop:', error);
       }
@@ -297,7 +357,7 @@ class RuleEngine {
   async persistRule(rule) {
     try {
       const key = `rule:${rule.id}`;
-      await redisClient.set(key, rule, 86400); // 24 hours TTL
+      await redisClient.set(key, rule.toJSON ? rule.toJSON() : rule, 86400); // 24 hours TTL
     } catch (error) {
       logger.error(`Failed to persist rule ${rule.id}:`, error);
     }
@@ -339,6 +399,19 @@ class RuleEngine {
       activeRules: Array.from(this.rules.values()).filter(r => r.status === 'active').length,
       totalUsers: this.userRules.size
     };
+  }
+  
+  // Shutdown gracefully
+  async shutdown() {
+    logger.info('Shutting down rule engine...');
+    this.stopEvaluationLoop();
+    
+    // Persist all rules
+    for (const [ruleId, rule] of this.rules) {
+      await this.persistRule(rule);
+    }
+    
+    logger.info('✅ Rule engine shut down');
   }
 }
 

@@ -2,6 +2,7 @@ const EventEmitter = require('events');
 const MarketDataWebSocket = require('./marketDataWebSocket');
 const logger = require('../utils/logger');
 const redisClient = require('../utils/redis');
+const eventBus = require('../utils/eventBus');
 
 class MarketDataAggregator extends EventEmitter {
   constructor() {
@@ -69,6 +70,11 @@ class MarketDataAggregator extends EventEmitter {
       
       // Emit to subscribers
       this.emitToSubscribers(normalizedData);
+
+      // Publish to event bus
+      if (normalizedData.type === 'ticker') {
+        eventBus.publish('market:priceUpdate', normalizedData);
+      }
       
       // Store in Redis for persistence
       this.persistToRedis(normalizedData);

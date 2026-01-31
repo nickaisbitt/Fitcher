@@ -18,13 +18,28 @@ const apiRoutes = require('./routes/api');
 const configRoutes = require('./routes/config');
 const marketDataRoutes = require('./routes/marketData');
 const tradingRoutes = require('./routes/trading');
+const backtestRoutes = require('./routes/backtest');
+const dataRoutes = require('./routes/data');
 
 // Import services
 const database = require('./utils/database');
 const redisClient = require('./utils/redis');
 const marketDataController = require('./controllers/marketDataController');
+const TradingEngine = require('./services/tradingEngine');
+const StrategyManager = require('./services/strategyManager');
+const RuleEngine = require('./services/ruleEngine');
+const OrderManager = require('./services/orderManager');
+const EnhancedRiskManager = require('./services/enhancedRiskManager');
+const PositionManager = require('./services/positionManager');
+const MetricsCollector = require('./services/metricsCollector');
+const AlertManager = require('./services/alertManager');
+const AuditLogger = require('./services/auditLogger');
+const eventBus = require('./utils/eventBus');
 
 const PORT = config.PORT;
+
+// Global trading engine instance
+let tradingEngine = null;
 
 // Create Express app
 const app = express();
@@ -84,6 +99,8 @@ app.use('/api', validateJWT, apiRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/market', marketDataRoutes);
 app.use('/api/trading', tradingRoutes);
+app.use('/api/backtest', backtestRoutes);
+app.use('/api/data', dataRoutes);
 
 // Socket.io connection handling
 io.on('connection', (socket) => {
@@ -122,6 +139,29 @@ async function startServer() {
     await marketDataController.initialize();
     logger.info('✅ Market data controller initialized');
 
+    // Initialize trading engine with all components
+    // Initialize observability services
+    const metricsCollector = new MetricsCollector();
+    const alertManager = new AlertManager();
+    const auditLogger = new AuditLogger();
+
+    tradingEngine = new TradingEngine();
+    await tradingEngine.initialize({
+      strategyManager: new StrategyManager(),
+      ruleEngine: new RuleEngine(),
+      orderManager: new OrderManager(),
+      riskManager: new EnhancedRiskManager(),
+      positionManager: new PositionManager(),
+      marketDataAggregator: marketDataController.aggregator
+    });
+    logger.info('✅ Trading engine initialized');
+
+    // Store trading engine in app for access from routes
+    app.set('tradingEngine', tradingEngine);
+    app.set('metricsCollector', metricsCollector);
+    app.set('alertManager', alertManager);
+    app.set('auditLogger', auditLogger);
+
     // Start server
     server.listen(PORT, () => {
       logger.info(`🚀 Fitcher server running on port ${PORT}`);
@@ -138,8 +178,13 @@ async function startServer() {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
-  
+
   try {
+    // Shutdown trading engine first
+    if (tradingEngine) {
+      await tradingEngine.shutdown();
+    }
+
     server.close(async () => {
       await redisClient.disconnect();
       await database.disconnect();
@@ -154,8 +199,13 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully');
-  
+
   try {
+    // Shutdown trading engine first
+    if (tradingEngine) {
+      await tradingEngine.shutdown();
+    }
+
     server.close(async () => {
       await redisClient.disconnect();
       await database.disconnect();

@@ -1,23 +1,62 @@
+const EventEmitter = require('events');
 const TradingStrategy = require('../models/tradingStrategy');
 const logger = require('../utils/logger');
 const redisClient = require('../utils/redis');
 
-class StrategyManager {
+class StrategyManager extends EventEmitter {
   constructor() {
+    super();
     this.strategies = new Map(); // strategyId -> TradingStrategy
     this.userStrategies = new Map(); // userId -> Set of strategyIds
     this.runningStrategies = new Set();
     this.executionInterval = null;
+    this.marketDataAggregator = null;
+    this.isProcessing = false;
   }
 
   // Initialize strategy manager
-  async initialize() {
+  async initialize(marketDataAggregator = null) {
     logger.info('Initializing strategy manager...');
     
-    // Start strategy execution loop
+    this.marketDataAggregator = marketDataAggregator;
+    
+    // Subscribe to market data events if aggregator provided
+    if (marketDataAggregator) {
+      marketDataAggregator.on('marketData', (data) => {
+        this.handleMarketData(data);
+      });
+      
+      marketDataAggregator.on('aggregatedPrice', (data) => {
+        this.handleAggregatedPrice(data);
+      });
+    }
+    
+    // Start strategy execution loop as fallback
     this.startExecutionLoop();
     
     logger.info('✅ Strategy manager initialized');
+  }
+
+  // Handle real-time market data
+  handleMarketData(data) {
+    if (data.type === 'ticker') {
+      // Update market data cache for strategies
+      this.lastMarketData = this.lastMarketData || {};
+      this.lastMarketData[data.pair] = {
+        price: data.price,
+        bid: data.bid,
+        ask: data.ask,
+        volume: data.volume,
+        timestamp: data.timestamp,
+        exchange: data.exchange
+      };
+    }
+  }
+
+  // Handle aggregated price updates
+  handleAggregatedPrice(data) {
+    this.lastAggregatedData = this.lastAggregatedData || {};
+    this.lastAggregatedData[data.pair] = data;
   }
 
   // Create new strategy
@@ -112,6 +151,13 @@ class StrategyManager {
       if (result.success) {
         await this.persistStrategy(strategy);
         this.runningStrategies.add(strategyId);
+        
+        // Subscribe to market data for this strategy's pair
+        if (this.marketDataAggregator) {
+          this.marketDataAggregator.subscribe('ticker', strategy.pair, (data) => {
+            // Strategy-specific handling
+          });
+        }
       }
 
       return result;
@@ -136,6 +182,11 @@ class StrategyManager {
       if (result.success) {
         await this.persistStrategy(strategy);
         this.runningStrategies.delete(strategyId);
+        
+        // Unsubscribe from market data
+        if (this.marketDataAggregator) {
+          this.marketDataAggregator.unsubscribe('ticker', strategy.pair, () => {});
+        }
       }
 
       return result;
@@ -263,25 +314,52 @@ class StrategyManager {
 
   // Execute all active strategies
   async executeStrategies(marketData) {
-    for (const strategyId of this.runningStrategies) {
-      try {
-        const strategy = await this.getStrategy(strategyId);
-        
-        if (strategy && strategy.status === 'active') {
-          const result = await strategy.execute(marketData);
+    // Prevent overlapping executions
+    if (this.isProcessing) {
+      logger.warn('Strategy execution already in progress, skipping...');
+      return;
+    }
+    
+    this.isProcessing = true;
+    
+    try {
+      for (const strategyId of this.runningStrategies) {
+        try {
+          const strategy = await this.getStrategy(strategyId);
           
-          if (result.success && result.action !== 'hold') {
-            // Emit signal for order execution
-            this.emit('strategySignal', {
-              strategyId: strategy.id,
-              userId: strategy.userId,
-              signal: result.signal
+          if (strategy && strategy.status === 'active') {
+            // Get pair-specific market data
+            const pairData = marketData.pairs?.[strategy.pair] || marketData;
+            
+            const result = await strategy.execute({
+              timestamp: Date.now(),
+              pairs: {
+                [strategy.pair]: pairData
+              }
             });
+            
+            if (result.success && result.action !== 'hold') {
+              // Emit signal for order execution
+              this.emit('strategySignal', {
+                strategyId: strategy.id,
+                userId: strategy.userId,
+                signal: result.signal,
+                timestamp: Date.now()
+              });
+              
+              logger.info(`Strategy ${strategyId} emitted ${result.action} signal`, {
+                pair: strategy.pair,
+                price: result.signal?.price,
+                amount: result.signal?.amount
+              });
+            }
           }
+        } catch (error) {
+          logger.error(`Error executing strategy ${strategyId}:`, error);
         }
-      } catch (error) {
-        logger.error(`Error executing strategy ${strategyId}:`, error);
       }
+    } finally {
+      this.isProcessing = false;
     }
   }
 
@@ -294,9 +372,12 @@ class StrategyManager {
     // Execute strategies every 30 seconds
     this.executionInterval = setInterval(async () => {
       try {
-        // In production, fetch real market data
-        const mockMarketData = this.generateMockMarketData();
-        await this.executeStrategies(mockMarketData);
+        // Use real market data if available, otherwise mock
+        const marketData = this.lastMarketData ? 
+          { timestamp: Date.now(), pairs: this.lastMarketData } :
+          this.generateMockMarketData();
+          
+        await this.executeStrategies(marketData);
       } catch (error) {
         logger.error('Error in strategy execution loop:', error);
       }
@@ -341,7 +422,7 @@ class StrategyManager {
   async persistStrategy(strategy) {
     try {
       const key = `strategy:${strategy.id}`;
-      await redisClient.set(key, strategy, 86400); // 24 hours TTL
+      await redisClient.set(key, strategy.toJSON ? strategy.toJSON() : strategy, 86400); // 24 hours TTL
     } catch (error) {
       logger.error(`Failed to persist strategy ${strategy.id}:`, error);
     }
@@ -394,6 +475,19 @@ class StrategyManager {
   // Get all active strategies count
   getActiveStrategiesCount() {
     return this.runningStrategies.size;
+  }
+  
+  // Shutdown gracefully
+  async shutdown() {
+    logger.info('Shutting down strategy manager...');
+    this.stopExecutionLoop();
+    
+    // Persist all strategies
+    for (const [strategyId, strategy] of this.strategies) {
+      await this.persistStrategy(strategy);
+    }
+    
+    logger.info('✅ Strategy manager shut down');
   }
 }
 

@@ -69,37 +69,50 @@ const redis = {
     return redisClient;
   },
 
-  // Session store helpers
-  setSession: async (sessionId, data, ttl = 86400) => {
+  // Generic get/set/del methods
+  get: async (key) => {
     if (isMockMode) {
-      mockStore.set(`session:${sessionId}`, { data, expires: Date.now() + ttl * 1000 });
-      return;
-    }
-    const client = redis.getClient();
-    await client.setex(`session:${sessionId}`, ttl, JSON.stringify(data));
-  },
-
-  getSession: async (sessionId) => {
-    if (isMockMode) {
-      const entry = mockStore.get(`session:${sessionId}`);
+      const entry = mockStore.get(key);
       if (entry && entry.expires > Date.now()) {
         return entry.data;
       }
-      mockStore.delete(`session:${sessionId}`);
+      mockStore.delete(key);
       return null;
     }
     const client = redis.getClient();
-    const data = await client.get(`session:${sessionId}`);
+    const data = await client.get(key);
     return data ? JSON.parse(data) : null;
   },
 
-  deleteSession: async (sessionId) => {
+  set: async (key, value, ttl = 86400) => {
     if (isMockMode) {
-      mockStore.delete(`session:${sessionId}`);
+      mockStore.set(key, { data: value, expires: Date.now() + ttl * 1000 });
       return;
     }
     const client = redis.getClient();
-    await client.del(`session:${sessionId}`);
+    await client.setex(key, ttl, JSON.stringify(value));
+  },
+
+  del: async (key) => {
+    if (isMockMode) {
+      mockStore.delete(key);
+      return;
+    }
+    const client = redis.getClient();
+    await client.del(key);
+  },
+
+  // Session store helpers
+  setSession: async (sessionId, data, ttl = 86400) => {
+    await redis.set(`session:${sessionId}`, data, ttl);
+  },
+
+  getSession: async (sessionId) => {
+    return await redis.get(`session:${sessionId}`);
+  },
+
+  deleteSession: async (sessionId) => {
+    await redis.del(`session:${sessionId}`);
   },
 
   // Rate limiting helpers

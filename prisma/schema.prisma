@@ -138,3 +138,85 @@ model TradingRule {
   @@index([userId])
   @@map("trading_rules")
 }
+
+model BacktestResult {
+  id             String   @id @default(uuid())
+  userId         String
+  type           String   // RUN or OPTIMIZE
+  exchange       String
+  pair           String
+  timeframe      String
+  strategyType   String
+  strategyParams Json
+  backtestConfig Json
+  result         Json
+  createdAt      DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([strategyType])
+  @@map("backtest_results")
+}
+
+model DataSource {
+  id            String   @id @default(uuid())
+  pair          String
+  timeframe     String   // 1m, 5m, 15m, 1h, 4h, 1d, 1w
+  exchange      String   // binance, kraken, etc.
+  earliestDate  DateTime
+  latestDate    DateTime
+  totalCandles  Int
+  filePath      String   // Path to Parquet file
+  fileSize      Int      // Size in bytes
+  checksum      String?  // MD5/SHA256 for integrity
+  isComplete    Boolean  @default(false)
+  lastUpdated   DateTime @default(now())
+  createdAt     DateTime @default(now())
+  
+  @@unique([pair, timeframe, exchange])
+  @@index([pair])
+  @@index([timeframe])
+  @@index([isComplete])
+  @@map("data_sources")
+}
+
+model IngestionJob {
+  id              String   @id @default(uuid())
+  pair            String
+  timeframe       String
+  exchange        String
+  status          String   // PENDING, RUNNING, COMPLETED, FAILED
+  priority        Int      @default(0) // 0=low, 1=normal, 2=high
+  candlesFetched  Int      @default(0)
+  candlesStored   Int      @default(0)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  errorMessage    String?
+  retryCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([status])
+  @@index([pair, timeframe])
+  @@index([priority, createdAt])
+  @@map("ingestion_jobs")
+}
+
+model DataGap {
+  id          String   @id @default(uuid())
+  pair        String
+  timeframe   String
+  gapStart    DateTime
+  gapEnd      DateTime
+  reason      String?  // exchange_maintenance, api_error, etc.
+  detectedAt  DateTime @default(now())
+  repairedAt  DateTime?
+  isRepaired  Boolean  @default(false)
+  
+  @@index([pair, timeframe])
+  @@index([isRepaired])
+  @@map("data_gaps")
+}

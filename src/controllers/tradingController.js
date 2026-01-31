@@ -67,7 +67,7 @@ class TradingController {
 
   // POST /api/trading/orders - Create new order
   createOrder = asyncHandler(async (req, res) => {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     const orderData = {
       userId,
       exchange: req.body.exchange,
@@ -95,7 +95,7 @@ class TradingController {
 
   // GET /api/trading/orders - Get user's orders
   getOrders = asyncHandler(async (req, res) => {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     const filters = {
       status: req.query.status,
       exchange: req.query.exchange,
@@ -124,7 +124,7 @@ class TradingController {
   // GET /api/trading/orders/:orderId - Get specific order
   getOrder = asyncHandler(async (req, res) => {
     const { orderId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.userId;
 
     const order = await this.orderManager.getOrder(orderId);
 
@@ -154,7 +154,7 @@ class TradingController {
   // PUT /api/trading/orders/:orderId - Update order
   updateOrder = asyncHandler(async (req, res) => {
     const { orderId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.userId;
 
     // Get order first to verify ownership
     const order = await this.orderManager.getOrder(orderId);
@@ -192,7 +192,7 @@ class TradingController {
   // DELETE /api/trading/orders/:orderId - Cancel order
   cancelOrder = asyncHandler(async (req, res) => {
     const { orderId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.userId;
 
     // Get order first to verify ownership
     const order = await this.orderManager.getOrder(orderId);
@@ -224,7 +224,7 @@ class TradingController {
 
   // GET /api/trading/stats - Get trading statistics
   getTradingStats = asyncHandler(async (req, res) => {
-    const userId = req.user.id;
+    const userId = req.user.userId;
 
     const stats = await this.orderManager.getOrderStats(userId);
 
@@ -236,7 +236,7 @@ class TradingController {
 
   // GET /api/trading/active - Get active orders count
   getActiveOrders = asyncHandler(async (req, res) => {
-    const userId = req.user.id;
+    const userId = req.user.userId;
 
     const orders = await this.orderManager.getUserOrders(userId);
     const activeOrders = orders.filter(o => ['pending', 'open', 'partial'].includes(o.status));
