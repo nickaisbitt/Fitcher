@@ -266,10 +266,13 @@ class GridTradingStrategy {
     
     // Reinitialize if spacing or levels changed
     if (params.gridSpacing || params.gridLevels) {
-      this.initializeGrids(this.centerPrice);
+      if (this.centerPrice) {
+        this.initializeGrids(this.centerPrice);
+      }
     }
     
-    logger.info('Grid trading strategy parameters updated:', params);
+    // Reset state between optimizer runs
+    this.reset();
   }
 
   /**
@@ -279,7 +282,6 @@ class GridTradingStrategy {
     this.grids = [];
     this.centerPrice = null;
     this.lastRebalance = null;
-    logger.info('Grid trading strategy reset');
   }
 }
 

@@ -16,11 +16,12 @@ model User {
   updatedAt DateTime @updatedAt
   
   // Relations
-  apiKeys      ApiKey[]
-  orders       Order[]
-  positions    Position[]
-  strategies   TradingStrategy[]
-  tradingRules TradingRule[]
+  apiKeys         ApiKey[]
+  orders          Order[]
+  positions       Position[]
+  strategies      TradingStrategy[]
+  tradingRules    TradingRule[]
+  backtestResults BacktestResult[]
   
   @@map("users")
 }

@@ -80,8 +80,8 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static files
-app.use(express.static(path.join(__dirname)));
+// Static files - serve only the public directory, NOT source code
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -93,14 +93,15 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API Routes
+// API Routes - order matters: specific paths before catch-all
 app.use('/api/auth', authRoutes);
-app.use('/api', validateJWT, apiRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/market', marketDataRoutes);
 app.use('/api/trading', tradingRoutes);
 app.use('/api/backtest', backtestRoutes);
 app.use('/api/data', dataRoutes);
+// Catch-all for /api/profile, /api/keys (must be LAST to avoid shadowing specific routes)
+app.use('/api', validateJWT, apiRoutes);
 
 // Socket.io connection handling
 io.on('connection', (socket) => {

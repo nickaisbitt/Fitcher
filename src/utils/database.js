@@ -53,10 +53,15 @@ const database = {
   }
 };
 
-// Mock Prisma client for development without database
+// ---------------------------------------------------------------------------
+// Mock Prisma client for development without a real database
+// ---------------------------------------------------------------------------
+// Supports the Prisma-like query patterns actually used in the codebase,
+// including compound-unique where clauses and the `{ in: [...] }` filter.
+// ---------------------------------------------------------------------------
 function createMockPrisma() {
   logger.info('Using mock database (in-memory storage)');
-  
+
   const mockUsers = new Map();
   const mockApiKeys = new Map();
   const mockOrders = new Map();
@@ -65,246 +70,180 @@ function createMockPrisma() {
   const mockDataSources = new Map();
   const mockIngestionJobs = new Map();
   const mockDataGaps = new Map();
-  
-  return {
-    isMock: true,
-    
-    user: {
-      findUnique: async ({ where }) => {
-        return mockUsers.get(where.email) || mockUsers.get(where.id) || null;
-      },
-      findFirst: async ({ where }) => {
-        for (const user of mockUsers.values()) {
-          if (where.email && user.email === where.email) return user;
-          if (where.id && user.id === where.id) return user;
-        }
-        return null;
-      },
-      create: async ({ data }) => {
-        mockUsers.set(data.id, data);
-        mockUsers.set(data.email, data);
-        return data;
-      },
-      update: async ({ where, data }) => {
-        const user = mockUsers.get(where.id);
-        if (user) {
-          Object.assign(user, data);
-          return user;
-        }
-        return null;
+  const mockStrategies = new Map();
+  const mockRules = new Map();
+
+  // ---- helpers ------------------------------------------------------------
+
+  /** Match a single Prisma-style where-value against a record value.
+   *  Supports: plain equality, { in: [...] }, { gte }, { lte }, { contains }.
+   */
+  function matchField(recordVal, filterVal) {
+    if (filterVal === null || filterVal === undefined) return true;
+    if (typeof filterVal === 'object' && !Array.isArray(filterVal) && !(filterVal instanceof Date)) {
+      // Prisma filter object
+      if (filterVal.in) return filterVal.in.includes(recordVal);
+      if (filterVal.gte !== undefined && recordVal < filterVal.gte) return false;
+      if (filterVal.lte !== undefined && recordVal > filterVal.lte) return false;
+      if (filterVal.contains !== undefined) return String(recordVal).includes(filterVal.contains);
+      return true;
+    }
+    return recordVal === filterVal;
+  }
+
+  /** Filter an array of records by a Prisma-style where clause. */
+  function applyWhere(records, where) {
+    if (!where) return records;
+    return records.filter(r => {
+      for (const [key, val] of Object.entries(where)) {
+        if (!matchField(r[key], val)) return false;
       }
-    },
-    
-    apiKey: {
-      findMany: async ({ where }) => {
-        const results = [];
-        for (const key of mockApiKeys.values()) {
-          if (!where || key.userId === where.userId) {
-            results.push(key);
-          }
-        }
+      return true;
+    });
+  }
+
+  /** Sort an array by a Prisma-style orderBy clause. */
+  function applyOrderBy(records, orderBy) {
+    if (!orderBy) return records;
+    const entries = typeof orderBy === 'object' ? Object.entries(orderBy) : [];
+    if (entries.length === 0) return records;
+    const [field, dir] = entries[0];
+    return records.sort((a, b) => {
+      const va = a[field], vb = b[field];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      const cmp = va > vb ? 1 : va < vb ? -1 : 0;
+      return dir === 'desc' ? -cmp : cmp;
+    });
+  }
+
+  /** Build a generic model mock for a given Map store. */
+  function makeModel(store) {
+    return {
+      findMany: async ({ where, orderBy, take, skip } = {}) => {
+        let results = applyWhere(Array.from(store.values()), where);
+        results = applyOrderBy(results, orderBy);
+        if (skip) results = results.slice(skip);
+        if (take) results = results.slice(0, take);
         return results;
       },
-      create: async ({ data }) => {
-        mockApiKeys.set(data.id, data);
-        return data;
-      }
-    },
-    
-    order: {
-      findMany: async ({ where }) => {
-        const results = [];
-        for (const order of mockOrders.values()) {
-          if (!where || order.userId === where.userId) {
-            results.push(order);
-          }
-        }
-        return results;
-      },
-      create: async ({ data }) => {
-        mockOrders.set(data.id, data);
-        return data;
-      },
-      update: async ({ where, data }) => {
-        const order = mockOrders.get(where.id);
-        if (order) {
-          Object.assign(order, data);
-          return order;
-        }
-        return null;
-      }
-    },
-    
-    position: {
-      findMany: async ({ where }) => {
-        const results = [];
-        for (const pos of mockPositions.values()) {
-          if (!where || pos.userId === where.userId) {
-            results.push(pos);
-          }
-        }
-        return results;
-      },
-      create: async ({ data }) => {
-        mockPositions.set(data.id, data);
-        return data;
-      },
-      update: async ({ where, data }) => {
-        const pos = mockPositions.get(where.id);
-        if (pos) {
-          Object.assign(pos, data);
-          return pos;
-        }
-        return null;
-      }
-    },
-    
-    tradingStrategy: {
-      findMany: async ({ where }) => [],
-      create: async ({ data }) => data
-    },
-    
-    tradingRule: {
-      findMany: async ({ where }) => [],
-      create: async ({ data }) => data
-    },
-
-    backtestResult: {
-      findMany: async ({ where, orderBy, take, skip }) => {
-        let results = Array.from(mockBacktestResults.values());
-
-        if (where?.userId) {
-          results = results.filter(r => r.userId === where.userId);
-        }
-
-        if (where?.type) {
-          results = results.filter(r => r.type === where.type);
-        }
-
-        if (where?.strategyType) {
-          results = results.filter(r => r.strategyType === where.strategyType);
-        }
-
-        if (where?.createdAt?.gte) {
-          results = results.filter(r => new Date(r.createdAt) >= new Date(where.createdAt.gte));
-        }
-
-        if (where?.createdAt?.lte) {
-          results = results.filter(r => new Date(r.createdAt) <= new Date(where.createdAt.lte));
-        }
-
-        if (orderBy?.createdAt === 'desc') {
-          results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        }
-
-        if (skip) {
-          results = results.slice(skip);
-        }
-
-        if (take) {
-          results = results.slice(0, take);
-        }
-
-        return results;
-      },
-      findFirst: async ({ where }) => {
-        let results = Array.from(mockBacktestResults.values());
-
-        if (where?.id) {
-          results = results.filter(r => r.id === where.id);
-        }
-
-        if (where?.userId) {
-          results = results.filter(r => r.userId === where.userId);
-        }
-
+      findFirst: async ({ where, orderBy } = {}) => {
+        let results = applyWhere(Array.from(store.values()), where);
+        results = applyOrderBy(results, orderBy);
         return results[0] || null;
       },
-      create: async ({ data }) => {
-        const record = {
-          createdAt: data.createdAt || new Date(),
-          ...data
-        };
-        mockBacktestResults.set(record.id, record);
-        return record;
-      }
-    },
-
-    dataSource: {
-      findMany: async ({ where }) => {
-        let results = Array.from(mockDataSources.values());
-        if (where?.pair) results = results.filter(r => r.pair === where.pair);
-        if (where?.timeframe) results = results.filter(r => r.timeframe === where.timeframe);
-        if (where?.exchange) results = results.filter(r => r.exchange === where.exchange);
-        if (where?.isComplete !== undefined) results = results.filter(r => r.isComplete === where.isComplete);
-        return results;
-      },
       findUnique: async ({ where }) => {
-        const key = `${where.pair}-${where.timeframe}-${where.exchange}`;
-        return mockDataSources.get(key) || null;
+        if (where.id) return store.get(where.id) || null;
+        // fallback: linear scan
+        for (const record of store.values()) {
+          let match = true;
+          for (const [k, v] of Object.entries(where)) {
+            if (record[k] !== v) { match = false; break; }
+          }
+          if (match) return record;
+        }
+        return null;
+      },
+      create: async ({ data }) => {
+        const record = { createdAt: new Date(), ...data };
+        if (!record.id) record.id = `mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        store.set(record.id, record);
+        return record;
+      },
+      update: async ({ where, data }) => {
+        const record = store.get(where.id);
+        if (record) {
+          Object.assign(record, data);
+          return record;
+        }
+        return null;
+      },
+      delete: async ({ where }) => {
+        const record = store.get(where.id);
+        if (record) {
+          store.delete(where.id);
+          return record;
+        }
+        return null;
+      },
+      count: async ({ where } = {}) => {
+        return applyWhere(Array.from(store.values()), where).length;
       },
       upsert: async ({ where, create, update }) => {
-        const key = `${where.pair}-${where.timeframe}-${where.exchange}`;
-        const existing = mockDataSources.get(key);
+        // Try to find existing
+        const existing = await makeModel(store).findUnique({ where });
         if (existing) {
           Object.assign(existing, update);
           return existing;
         }
-        mockDataSources.set(key, create);
-        return create;
+        const record = { createdAt: new Date(), ...create };
+        if (!record.id) record.id = `mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        store.set(record.id, record);
+        return record;
       }
-    },
+    };
+  }
 
-    ingestionJob: {
-      findMany: async ({ where, orderBy, take }) => {
-        let results = Array.from(mockIngestionJobs.values());
-        if (where?.status) results = results.filter(r => r.status === where.status);
-        if (where?.pair) results = results.filter(r => r.pair === where.pair);
-        if (orderBy?.createdAt === 'desc') results.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        if (orderBy?.priority === 'desc') results.sort((a, b) => b.priority - a.priority);
-        if (take) results = results.slice(0, take);
-        return results;
-      },
-      findFirst: async ({ where }) => {
-        let results = Array.from(mockIngestionJobs.values());
-        if (where?.id) results = results.filter(r => r.id === where.id);
-        return results[0] || null;
-      },
-      create: async ({ data }) => {
-        mockIngestionJobs.set(data.id, data);
-        return data;
-      },
-      update: async ({ where, data }) => {
-        const job = mockIngestionJobs.get(where.id);
-        if (job) {
-          Object.assign(job, data);
-          return job;
-        }
-        return null;
-      }
+  // ---- user model (special: indexed by both id and email) -----------------
+  const userModel = {
+    ...makeModel(mockUsers),
+    findUnique: async ({ where }) => {
+      return mockUsers.get(where.email) || mockUsers.get(where.id) || null;
     },
-
-    dataGap: {
-      findMany: async ({ where }) => {
-        let results = Array.from(mockDataGaps.values());
-        if (where?.pair) results = results.filter(r => r.pair === where.pair);
-        if (where?.timeframe) results = results.filter(r => r.timeframe === where.timeframe);
-        if (where?.isRepaired !== undefined) results = results.filter(r => r.isRepaired === where.isRepaired);
-        return results;
-      },
-      create: async ({ data }) => {
-        mockDataGaps.set(data.id, data);
-        return data;
-      },
-      update: async ({ where, data }) => {
-        const gap = mockDataGaps.get(where.id);
-        if (gap) {
-          Object.assign(gap, data);
-          return gap;
-        }
-        return null;
-      }
+    create: async ({ data }) => {
+      const record = { createdAt: new Date(), ...data };
+      if (!record.id) record.id = `mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      mockUsers.set(record.id, record);
+      if (record.email) mockUsers.set(record.email, record);
+      return record;
     }
+  };
+
+  // ---- dataSource model (special: compound unique key) --------------------
+  const dataSourceModel = {
+    ...makeModel(mockDataSources),
+    findUnique: async ({ where }) => {
+      // Prisma compound unique: where.pair_timeframe_exchange = { pair, timeframe, exchange }
+      const compound = where.pair_timeframe_exchange || where;
+      const key = `${compound.pair}-${compound.timeframe}-${compound.exchange}`;
+      return mockDataSources.get(key) || null;
+    },
+    upsert: async ({ where, create, update }) => {
+      const compound = where.pair_timeframe_exchange || where;
+      const key = `${compound.pair}-${compound.timeframe}-${compound.exchange}`;
+      const existing = mockDataSources.get(key);
+      if (existing) {
+        Object.assign(existing, update);
+        return existing;
+      }
+      const record = { createdAt: new Date(), ...create };
+      mockDataSources.set(key, record);
+      return record;
+    }
+  };
+
+  return {
+    isMock: true,
+
+    // Prisma-level methods
+    $transaction: async (fn) => {
+      // Simple mock: just execute sequentially (no real transactional rollback)
+      if (typeof fn === 'function') return fn({ user: userModel, order: makeModel(mockOrders) });
+      // Array-of-promises form
+      return Promise.all(fn);
+    },
+
+    user: userModel,
+    apiKey: makeModel(mockApiKeys),
+    order: makeModel(mockOrders),
+    position: makeModel(mockPositions),
+    backtestResult: makeModel(mockBacktestResults),
+    tradingStrategy: makeModel(mockStrategies),
+    tradingRule: makeModel(mockRules),
+    dataSource: dataSourceModel,
+    ingestionJob: makeModel(mockIngestionJobs),
+    dataGap: makeModel(mockDataGaps)
   };
 }
 

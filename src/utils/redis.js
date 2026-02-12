@@ -10,9 +10,10 @@ let mockStore = new Map();
 const redis = {
   connect: async () => {
     try {
-      // Check if Redis URL is set
-      if (!config.REDIS_URL || config.REDIS_URL === 'redis://localhost:6379') {
-        logger.warn('Redis URL not configured, using mock Redis mode');
+      // Only mock if REDIS_URL is explicitly empty/unset.
+      // "redis://localhost:6379" is a valid local URL (e.g. Docker).
+      if (!config.REDIS_URL) {
+        logger.warn('REDIS_URL not set, using mock Redis mode');
         isMockMode = true;
         mockStore = new Map();
         return;

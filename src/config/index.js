@@ -30,7 +30,7 @@ const config = {
   ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
   
   // Frontend
-  FRONTEND_URL: process.env.FRONTEND_URL || '*',
+  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
   
   // Logging
   LOG_LEVEL: process.env.LOG_LEVEL || 'info'

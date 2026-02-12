@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "node src/app.js",
+    "test": "NODE_ENV=test vitest run",
+    "test:watch": "NODE_ENV=test vitest",
     "backtest": "node scripts/runBacktest.js",
     "backtest:matrix": "node scripts/runBacktestMatrix.js"
   },
@@ -42,5 +44,8 @@
     "uuid": "^9.0.0",
     "winston": "^3.11.0",
     "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.9"
   }
 }
