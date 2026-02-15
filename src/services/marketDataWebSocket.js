@@ -464,10 +464,24 @@ class MarketDataWebSocket extends EventEmitter {
   }
 
   resubscribeAll() {
+    if (this.subscriptions.size === 0) return;
+
     logger.info(`[${this.exchangeName}] Resubscribing to ${this.subscriptions.size} channels`);
     
-    for (const [key, { channel, pair }] of this.subscriptions) {
-      this.subscribe(channel, pair);
+    // Collect existing subscriptions before iterating, because subscribe()
+    // would skip entries that are already in the map.
+    const pending = Array.from(this.subscriptions.values());
+
+    for (const { channel, pair, subscription } of pending) {
+      try {
+        if (this.isConnected && this.ws) {
+          const msg = this.createSubscriptionMessage(channel, pair);
+          this.ws.send(JSON.stringify(msg));
+          logger.debug(`[${this.exchangeName}] Resubscribed to ${channel}:${pair}`);
+        }
+      } catch (error) {
+        logger.error(`[${this.exchangeName}] Failed to resubscribe to ${channel}:${pair}:`, error);
+      }
     }
   }
 

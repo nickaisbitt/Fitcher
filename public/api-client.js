@@ -1,4 +1,5 @@
 // Fitcher API Client - Connects frontend to backend API
+// Tokens stored in-memory only (never localStorage). Refresh tokens use httpOnly cookies.
 const API_BASE_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:3000/api' 
   : '/api';
@@ -6,59 +7,90 @@ const API_BASE_URL = window.location.hostname === 'localhost'
 class FitcherAPI {
   constructor() {
     this.baseURL = API_BASE_URL;
-    this.token = null;
+    this.token = null;       // In-memory only, never persisted
+    this._refreshing = null; // Prevents concurrent refresh attempts
   }
 
-  // Set authentication token
+  // Set access token (memory only -- no localStorage)
   setToken(token) {
     this.token = token;
-    localStorage.setItem('fitcher_token', token);
   }
 
-  // Get stored token
+  // Get in-memory access token
   getToken() {
-    if (!this.token) {
-      this.token = localStorage.getItem('fitcher_token');
-    }
     return this.token;
   }
 
-  // Clear token (logout)
+  // Clear in-memory token
   clearToken() {
     this.token = null;
-    localStorage.removeItem('fitcher_token');
   }
 
-  // Make authenticated request
-  async request(endpoint, options = {}) {
+  // Make authenticated request with auto-refresh on 401
+  async request(endpoint, options = {}, _isRetry = false) {
     const url = `${this.baseURL}${endpoint}`;
     const headers = {
       'Content-Type': 'application/json',
       ...options.headers
     };
 
-    const token = this.getToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers
-      });
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: 'include' // Always send cookies (httpOnly refresh token)
+    });
 
-      const data = await response.json();
+    // Check response.ok BEFORE parsing body
+    if (!response.ok) {
+      let errorData = {};
+      try { errorData = await response.json(); } catch {}
 
-      if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}`);
+      // Auto-refresh on token expiry (retry once to avoid infinite loops)
+      if (response.status === 401 && errorData.code === 'TOKEN_EXPIRED' && !_isRetry) {
+        const refreshed = await this._tryRefresh();
+        if (refreshed) {
+          return this.request(endpoint, options, true);
+        }
       }
 
-      return data;
-    } catch (error) {
-      console.error('API Error:', error);
-      throw error;
+      throw new Error(errorData.error || `HTTP ${response.status}`);
     }
+
+    return response.json();
+  }
+
+  // Attempt to refresh the access token using the httpOnly refresh cookie
+  async _tryRefresh() {
+    // Deduplicate concurrent refresh attempts
+    if (this._refreshing) return this._refreshing;
+
+    this._refreshing = (async () => {
+      try {
+        const response = await fetch(`${this.baseURL}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', // Browser sends httpOnly refresh cookie
+          body: JSON.stringify({})
+        });
+        if (!response.ok) return false;
+        const data = await response.json();
+        if (data.success && data.data.accessToken) {
+          this.setToken(data.data.accessToken);
+          return true;
+        }
+        return false;
+      } catch {
+        return false;
+      } finally {
+        this._refreshing = null;
+      }
+    })();
+
+    return this._refreshing;
   }
 
   // ==================== AUTHENTICATION ====================
@@ -89,19 +121,29 @@ class FitcherAPI {
     return data;
   }
 
-  async refreshToken(refreshToken) {
-    return this.request('/auth/refresh', {
-      method: 'POST',
-      body: JSON.stringify({ refreshToken })
-    });
+  async refreshToken() {
+    // Public method -- delegates to the internal refresh flow
+    const refreshed = await this._tryRefresh();
+    if (!refreshed) {
+      throw new Error('Token refresh failed');
+    }
   }
 
-  logout() {
+  async logout() {
+    try {
+      await fetch(`${this.baseURL}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include' // Server clears httpOnly cookies
+      });
+    } catch {
+      // Best-effort; clear local state regardless
+    }
     this.clearToken();
   }
 
   isAuthenticated() {
-    return !!this.getToken();
+    return !!this.token;
   }
 
   // ==================== USER PROFILE ====================

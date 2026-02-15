@@ -372,11 +372,14 @@ class StrategyManager extends EventEmitter {
     // Execute strategies every 30 seconds
     this.executionInterval = setInterval(async () => {
       try {
-        // Use real market data if available, otherwise mock
-        const marketData = this.lastMarketData ? 
-          { timestamp: Date.now(), pairs: this.lastMarketData } :
-          this.generateMockMarketData();
-          
+        // Only execute strategies when real market data is available.
+        // Never use mock/random data for real strategy execution.
+        if (!this.lastMarketData) {
+          logger.debug('Strategy execution skipped: no market data available');
+          return;
+        }
+
+        const marketData = { timestamp: Date.now(), pairs: this.lastMarketData };
         await this.executeStrategies(marketData);
       } catch (error) {
         logger.error('Error in strategy execution loop:', error);

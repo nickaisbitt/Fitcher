@@ -1,8 +1,18 @@
+const { v4: uuidv4 } = require('uuid');
 const logger = require('../utils/logger');
+
+// Attach a unique request ID to every request
+const requestId = (req, res, next) => {
+  req.id = req.headers['x-request-id'] || uuidv4();
+  res.setHeader('X-Request-Id', req.id);
+  next();
+};
 
 // Global error handler middleware
 const errorHandler = (err, req, res, next) => {
-  logger.error('Unhandled error:', {
+  const reqId = req.id || 'unknown';
+
+  logger.error(`[${reqId}] Unhandled error:`, {
     error: err.message,
     stack: err.stack,
     url: req.url,
@@ -10,16 +20,21 @@ const errorHandler = (err, req, res, next) => {
     ip: req.ip
   });
 
-  // Don't leak error details in production
-  const message = process.env.NODE_ENV === 'production' 
-    ? 'Internal server error' 
-    : err.message;
+  const status = err.status || 500;
+  const isProduction = process.env.NODE_ENV === 'production';
 
-  res.status(err.status || 500).json({
+  // Never leak stack traces or internal error messages in production
+  const response = {
     success: false,
-    error: message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
-  });
+    error: isProduction ? 'Internal server error' : err.message,
+    requestId: reqId
+  };
+
+  if (!isProduction) {
+    response.stack = err.stack;
+  }
+
+  res.status(status).json(response);
 };
 
 // Async error wrapper
@@ -27,4 +42,4 @@ const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
-module.exports = { errorHandler, asyncHandler };
+module.exports = { errorHandler, asyncHandler, requestId };

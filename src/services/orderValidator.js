@@ -256,11 +256,49 @@ class OrderValidator {
     return { valid: true };
   }
 
-  // Validate sufficient balance (mock implementation)
+  /**
+   * Validate sufficient balance for an order.
+   * Requires a balanceProvider to be set via setBalanceProvider().
+   * If no provider is configured, validation is skipped with a warning.
+   */
   validateSufficientBalance(order) {
-    // In production, this would check actual user balance
-    // For now, always return valid
-    return { valid: true };
+    if (!this.balanceProvider) {
+      // No balance provider — cannot validate. Log warning but don't block.
+      logger.warn('OrderValidator: No balance provider configured, skipping balance check');
+      return { valid: true, warning: 'Balance check skipped — no provider configured' };
+    }
+
+    try {
+      const balance = this.balanceProvider.getAvailableBalance(order.userId, order.pair);
+
+      if (balance === null || balance === undefined) {
+        return { valid: false, error: 'Unable to retrieve account balance' };
+      }
+
+      const requiredAmount = order.side?.toLowerCase() === 'buy'
+        ? (order.amount * (order.price || 0))  // Need quote currency for buys
+        : order.amount;                          // Need base currency for sells
+
+      if (requiredAmount > balance) {
+        return {
+          valid: false,
+          error: `Insufficient balance. Required: ${requiredAmount.toFixed(8)}, Available: ${balance.toFixed(8)}`
+        };
+      }
+
+      return { valid: true };
+    } catch (error) {
+      logger.error('Balance validation error:', error);
+      return { valid: false, error: 'Balance validation failed' };
+    }
+  }
+
+  /**
+   * Set the balance provider for real balance checking.
+   * Provider must implement: getAvailableBalance(userId, pair) => number
+   */
+  setBalanceProvider(provider) {
+    this.balanceProvider = provider;
   }
 
   // Get exchange-specific limits

@@ -8,9 +8,28 @@ const path = require('path');
 require('dotenv').config();
 
 const config = require('./config');
-const { errorHandler } = require('./middleware/errorHandler');
+const { errorHandler, requestId } = require('./middleware/errorHandler');
 const { validateJWT } = require('./middleware/auth');
 const logger = require('./utils/logger');
+
+// Cookie parser for httpOnly JWT cookies
+let cookieParser;
+try {
+  cookieParser = require('cookie-parser');
+} catch {
+  // Fallback: minimal cookie parser if cookie-parser not installed
+  cookieParser = () => (req, res, next) => {
+    req.cookies = {};
+    const cookieHeader = req.headers.cookie;
+    if (cookieHeader) {
+      cookieHeader.split(';').forEach(cookie => {
+        const [name, ...rest] = cookie.trim().split('=');
+        req.cookies[name] = decodeURIComponent(rest.join('='));
+      });
+    }
+    next();
+  };
+}
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -76,6 +95,12 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
+// Request ID middleware
+app.use(requestId);
+
+// Cookie parsing middleware (for httpOnly JWT cookies)
+app.use(cookieParser());
+
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -103,9 +128,25 @@ app.use('/api/data', dataRoutes);
 // Catch-all for /api/profile, /api/keys (must be LAST to avoid shadowing specific routes)
 app.use('/api', validateJWT, apiRoutes);
 
-// Socket.io connection handling
+// Socket.io authentication middleware
+const jwt = require('jsonwebtoken');
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) {
+    return next(new Error('Authentication required'));
+  }
+  try {
+    const decoded = jwt.verify(token, config.JWT_SECRET);
+    socket.user = decoded;
+    next();
+  } catch (err) {
+    return next(new Error('Invalid or expired token'));
+  }
+});
+
+// Socket.io connection handling (authenticated)
 io.on('connection', (socket) => {
-  logger.info(`Socket connected: ${socket.id}`);
+  logger.info(`Socket connected: ${socket.id} (user: ${socket.user?.userId})`);
   
   socket.on('disconnect', () => {
     logger.info(`Socket disconnected: ${socket.id}`);

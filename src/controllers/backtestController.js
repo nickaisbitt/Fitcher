@@ -54,12 +54,12 @@ class BacktestController {
     }
 
     return rawData.map(candle => ({
-      timestamp: candle[0] || candle.timestamp,
-      open: candle[1] || candle.open,
-      high: candle[2] || candle.high,
-      low: candle[3] || candle.low,
-      close: candle[4] || candle.close,
-      volume: candle[5] || candle.volume
+      timestamp: candle[0] ?? candle.timestamp,
+      open: candle[1] ?? candle.open,
+      high: candle[2] ?? candle.high,
+      low: candle[3] ?? candle.low,
+      close: candle[4] ?? candle.close,
+      volume: candle[5] ?? candle.volume
     }));
   }
 

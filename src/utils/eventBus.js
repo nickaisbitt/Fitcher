@@ -1,13 +1,17 @@
 const EventEmitter = require('events');
-const logger = require('../utils/logger');
+const logger = require('./logger');
 
 /**
- * EventBus - Central event communication system
- * Provides decoupled event-driven architecture for the trading system
+ * EventBus — Central event communication system.
+ *
+ * Single event system (no more dual EventEmitter + custom Map confusion).
+ * Uses a subscribers Map for priority-ordered, error-isolated handlers.
+ * EventEmitter.emit is used internally only for waitFor() compatibility.
  */
 class EventBus extends EventEmitter {
   constructor() {
     super();
+    this.setMaxListeners(100); // Trading systems have many subscribers
     this.subscribers = new Map();
     this.eventHistory = [];
     this.maxHistorySize = 1000;
@@ -19,103 +23,96 @@ class EventBus extends EventEmitter {
   }
 
   /**
-   * Subscribe to an event with error handling
+   * Subscribe to an event.
    * @param {string} event - Event name
    * @param {Function} handler - Event handler
-   * @param {Object} options - Subscription options
+   * @param {Object} [options]
+   * @param {number} [options.priority=0] - Higher runs first
+   * @param {boolean} [options.once=false] - Auto-remove after first call
+   * @returns {string} Subscription ID (for unsubscribe)
    */
   subscribe(event, handler, options = {}) {
     const { priority = 0, once = false } = options;
-    
+
+    if (typeof handler !== 'function') {
+      throw new Error(`Event handler must be a function, got ${typeof handler}`);
+    }
+
     if (!this.subscribers.has(event)) {
       this.subscribers.set(event, []);
     }
-    
+
     const subscription = {
       handler,
       priority,
       once,
       id: Math.random().toString(36).substr(2, 9)
     };
-    
+
     const handlers = this.subscribers.get(event);
     handlers.push(subscription);
-    
-    // Sort by priority (higher first)
     handlers.sort((a, b) => b.priority - a.priority);
-    
-    logger.debug(`Subscribed to event '${event}' with priority ${priority}`);
-    
+
     return subscription.id;
   }
 
   /**
-   * Unsubscribe from an event
-   * @param {string} event - Event name
-   * @param {string} subscriptionId - Subscription ID
+   * Unsubscribe by event name and subscription ID.
+   * @param {string} event
+   * @param {string} subscriptionId
+   * @returns {boolean} true if found and removed
    */
   unsubscribe(event, subscriptionId) {
     if (!this.subscribers.has(event)) return false;
-    
+
     const handlers = this.subscribers.get(event);
     const index = handlers.findIndex(sub => sub.id === subscriptionId);
-    
+
     if (index !== -1) {
       handlers.splice(index, 1);
-      logger.debug(`Unsubscribed from event '${event}'`);
+      if (handlers.length === 0) {
+        this.subscribers.delete(event);
+      }
       return true;
     }
-    
+
     return false;
   }
 
   /**
-   * Publish an event to all subscribers
+   * Publish an event to all subscribers.
+   * Each handler is wrapped in try/catch so one failing handler
+   * doesn't prevent others from running.
+   *
    * @param {string} event - Event name
    * @param {*} data - Event data
-   * @param {Object} options - Publish options
    */
-  async publish(event, data, options = {}) {
-    const { async = true, timeout = 5000 } = options;
-    
+  publish(event, data) {
     this.metrics.eventsPublished++;
-    
+
     const eventPayload = {
       event,
       data,
       timestamp: Date.now(),
       id: Math.random().toString(36).substr(2, 9)
     };
-    
+
     // Store in history
     this.addToHistory(eventPayload);
-    
-    // Emit to EventEmitter for compatibility
+
+    // Also emit on EventEmitter for waitFor() and .on() compatibility
     this.emit(event, data);
-    
-    // Handle subscribers
+
     if (!this.subscribers.has(event)) return;
-    
+
     const handlers = this.subscribers.get(event);
     const toRemove = [];
-    
+
     for (const subscription of handlers) {
       try {
-        if (async) {
-          // Execute with timeout
-          await Promise.race([
-            subscription.handler(data, eventPayload),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Handler timeout')), timeout)
-            )
-          ]);
-        } else {
-          subscription.handler(data, eventPayload);
-        }
-        
+        subscription.handler(data, eventPayload);
         this.metrics.eventsHandled++;
-        
-        // Mark once handlers for removal
+
         if (subscription.once) {
           toRemove.push(subscription.id);
         }
@@ -124,97 +121,90 @@ class EventBus extends EventEmitter {
         logger.error(`Error handling event '${event}':`, error);
       }
     }
-    
+
     // Remove once handlers
-    toRemove.forEach(id => this.unsubscribe(event, id));
+    for (const id of toRemove) {
+      this.unsubscribe(event, id);
+    }
   }
 
   /**
-   * Publish synchronously (for critical events)
-   * @param {string} event - Event name
-   * @param {*} data - Event data
-   */
-  publishSync(event, data) {
-    return this.publish(event, data, { async: false });
-  }
-
-  /**
-   * Add event to history
-   * @param {Object} eventPayload - Event payload
+   * Add event to capped history.
    */
   addToHistory(eventPayload) {
     this.eventHistory.push(eventPayload);
-    
-    // Trim history if too large
-    if (this.eventHistory.length > this.maxHistorySize) {
+    while (this.eventHistory.length > this.maxHistorySize) {
       this.eventHistory.shift();
     }
   }
 
   /**
-   * Get event history
-   * @param {string} event - Filter by event name
-   * @param {number} limit - Maximum number of events
+   * Get event history, optionally filtered by event name.
+   * @param {string|null} event
+   * @param {number} limit
+   * @returns {Array}
    */
   getHistory(event = null, limit = 100) {
     let history = this.eventHistory;
-    
     if (event) {
       history = history.filter(e => e.event === event);
     }
-    
     return history.slice(-limit);
   }
 
   /**
-   * Wait for an event
-   * @param {string} event - Event name
-   * @param {number} timeout - Timeout in ms
-   * @param {Function} filter - Optional filter function
+   * Wait for a specific event (promise-based).
+   * @param {string} event
+   * @param {number} timeout - ms
+   * @param {Function|null} filter - Optional predicate
+   * @returns {Promise<*>}
    */
   waitFor(event, timeout = 5000, filter = null) {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
+        this.off(event, handler);
         reject(new Error(`Timeout waiting for event '${event}'`));
       }, timeout);
-      
+
       const handler = (data) => {
         if (filter && !filter(data)) return;
-        
         clearTimeout(timer);
         this.off(event, handler);
         resolve(data);
       };
-      
+
       this.on(event, handler);
     });
   }
 
   /**
-   * Get event bus metrics
+   * Get metrics about the event bus.
    */
   getMetrics() {
+    let subscriberCount = 0;
+    for (const handlers of this.subscribers.values()) {
+      subscriberCount += handlers.length;
+    }
+
     return {
       ...this.metrics,
-      subscriberCount: Array.from(this.subscribers.values())
-        .reduce((sum, handlers) => sum + handlers.length, 0),
+      subscriberCount,
       eventTypes: Array.from(this.subscribers.keys()),
       historySize: this.eventHistory.length
     };
   }
 
   /**
-   * Clear all subscribers and history
+   * Clear all subscribers and history.
    */
   clear() {
     this.subscribers.clear();
     this.eventHistory = [];
     this.removeAllListeners();
-    logger.info('Event bus cleared');
   }
 }
 
-// Create singleton instance
+// Singleton
 const eventBus = new EventBus();
 
 module.exports = eventBus;

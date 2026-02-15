@@ -18,6 +18,7 @@ class MetricsCollector {
       orders: [],
       signals: [],
       errors: [],
+      events: [],
       latency: [],
       equity: new Map() // userId -> equity history
     };
@@ -167,13 +168,13 @@ class MetricsCollector {
    * @param {Object} data - Event data
    */
   recordEvent(type, data) {
-    this.metrics.orders.push({
+    this.metrics.events.push({
       timestamp: Date.now(),
       type,
       ...data
     });
     
-    this.trimOldData(this.metrics.orders);
+    this.trimOldData(this.metrics.events);
   }
 
   /**
@@ -322,8 +323,10 @@ class MetricsCollector {
       retentionPeriod: this.config.retentionPeriod,
       dataPoints: {
         trades: this.metrics.trades.length,
+        orders: this.metrics.orders.length,
         signals: this.metrics.signals.length,
         errors: this.metrics.errors.length,
+        events: this.metrics.events.length,
         latency: this.metrics.latency.length,
         equityUsers: this.metrics.equity.size
       }
@@ -368,6 +371,7 @@ class MetricsCollector {
     this.metrics.orders = [];
     this.metrics.signals = [];
     this.metrics.errors = [];
+    this.metrics.events = [];
     this.metrics.latency = [];
     this.metrics.equity.clear();
     

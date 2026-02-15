@@ -158,10 +158,12 @@ class ParquetWriter {
       }
 
       // Merge and deduplicate (keep latest version if duplicates)
-      const merged = [...existingCandles, ...candles];
+      // New candles come first so that when we deduplicate by first-seen,
+      // the newer data wins over stale existing data.
+      const merged = [...candles, ...existingCandles];
       merged.sort((a, b) => a.timestamp - b.timestamp);
       
-      // Remove duplicates (same timestamp)
+      // Remove duplicates (same timestamp) — first occurrence wins (new data)
       const unique = [];
       const seen = new Set();
       for (const candle of merged) {

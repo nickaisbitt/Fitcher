@@ -127,6 +127,15 @@ class TradingEngine extends EventEmitter {
         const positions = portfolioSummary.positions || [];
         const totalExposure = positions.reduce((sum, p) => sum + (p.totalValue || 0), 0);
 
+        if (portfolioSummary.totalValue == null) {
+          logger.warn(`Cannot determine portfolio value for user ${signal.userId}, blocking trade for safety`);
+          eventBus.publish('trading:signalBlocked', {
+            signal,
+            reason: ['Portfolio value unknown — cannot assess risk']
+          });
+          return;
+        }
+
         const riskCheck = await this.riskManager.checkTrade(
           signal.userId,
           {
@@ -137,7 +146,7 @@ class TradingEngine extends EventEmitter {
             marketPrice: signal.signal.price
           },
           {
-            totalValue: portfolioSummary.totalValue || 100000,
+            totalValue: portfolioSummary.totalValue,
             positions,
             totalExposure
           }
@@ -333,14 +342,14 @@ class TradingEngine extends EventEmitter {
    * @param {string} userId - User ID
    */
   async getPortfolioValue(userId) {
-    if (!this.positionManager) return 100000; // Default mock value
+    if (!this.positionManager) return null;
     
     try {
       const summary = await this.positionManager.getPortfolioSummary(userId);
-      return summary?.totalValue || 100000;
+      return summary?.totalValue ?? null;
     } catch (error) {
       logger.error(`Failed to get portfolio value for ${userId}:`, error);
-      return 100000;
+      return null;
     }
   }
 

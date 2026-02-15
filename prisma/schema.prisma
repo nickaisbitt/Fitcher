@@ -22,16 +22,35 @@ model User {
   strategies      TradingStrategy[]
   tradingRules    TradingRule[]
   backtestResults BacktestResult[]
+  refreshTokens  RefreshToken[]
   
   @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique  // SHA-256 hash of the token (never store raw tokens)
+  family    String    // Token family for rotation detection
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([family])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
 }
 
 model ApiKey {
   id        String   @id @default(uuid())
   userId    String
   exchange  String
-  apiKey    String
-  apiSecret String
+  apiKeyEncrypted    String   // AES-256-GCM encrypted
+  apiSecretEncrypted String   // AES-256-GCM encrypted
+  apiKeyHint         String?  // Last 4 chars of original key for display
   label     String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -73,6 +92,8 @@ model Order {
   @@index([userId])
   @@index([status])
   @@index([exchange, symbol])
+  @@index([userId, createdAt])
+  @@index([exchangeOrderId])
   @@map("orders")
 }
 
@@ -171,7 +192,7 @@ model DataSource {
   latestDate    DateTime
   totalCandles  Int
   filePath      String   // Path to Parquet file
-  fileSize      Int      // Size in bytes
+  fileSize      BigInt   // Size in bytes
   checksum      String?  // MD5/SHA256 for integrity
   isComplete    Boolean  @default(false)
   lastUpdated   DateTime @default(now())
@@ -210,6 +231,7 @@ model DataGap {
   id          String   @id @default(uuid())
   pair        String
   timeframe   String
+  exchange    String
   gapStart    DateTime
   gapEnd      DateTime
   reason      String?  // exchange_maintenance, api_error, etc.
@@ -217,7 +239,7 @@ model DataGap {
   repairedAt  DateTime?
   isRepaired  Boolean  @default(false)
   
-  @@index([pair, timeframe])
+  @@index([pair, timeframe, exchange])
   @@index([isRepaired])
   @@map("data_gaps")
 }

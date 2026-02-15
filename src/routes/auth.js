@@ -1,14 +1,54 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
+const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
-const { generateTokens } = require('../middleware/auth');
+const config = require('../config');
+const { generateTokens, setTokenCookies, clearTokenCookies } = require('../middleware/auth');
 const database = require('../utils/database');
 const logger = require('../utils/logger');
 
 const router = express.Router();
 
+// Strict rate limiting for auth endpoints
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  message: { success: false, error: 'Too many login attempts, please try again in 15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3,
+  message: { success: false, error: 'Too many registration attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Validation helpers
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation failed',
+      details: errors.array().map(e => e.msg)
+    });
+  }
+  next();
+};
+
 // Register new user
-router.post('/signup', async (req, res) => {
+router.post('/signup',
+  registerLimiter,
+  body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  handleValidationErrors,
+  async (req, res) => {
   try {
     const { email, password, name } = req.body;
 
@@ -48,8 +88,9 @@ router.post('/signup', async (req, res) => {
       }
     });
 
-    // Generate tokens
+    // Generate tokens and set cookies
     const tokens = generateTokens(user.id, user.email);
+    setTokenCookies(res, tokens);
 
     res.status(201).json({
       success: true,
@@ -72,7 +113,12 @@ router.post('/signup', async (req, res) => {
 });
 
 // Login user
-router.post('/login', async (req, res) => {
+router.post('/login',
+  loginLimiter,
+  body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+  body('password').notEmpty().withMessage('Password is required'),
+  handleValidationErrors,
+  async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -107,8 +153,9 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Generate tokens
+    // Generate tokens and set cookies
     const tokens = generateTokens(user.id, user.email);
+    setTokenCookies(res, tokens);
 
     res.json({
       success: true,
@@ -133,7 +180,8 @@ router.post('/login', async (req, res) => {
 // Refresh token
 router.post('/refresh', async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    // Accept refresh token from body or httpOnly cookie
+    const refreshToken = req.body.refreshToken || req.cookies?.fitcher_refresh_token;
 
     if (!refreshToken) {
       return res.status(400).json({
@@ -142,9 +190,8 @@ router.post('/refresh', async (req, res) => {
       });
     }
 
-    // Verify refresh token
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+    // Verify refresh token using the dedicated refresh secret
+    const decoded = jwt.verify(refreshToken, config.JWT_REFRESH_SECRET);
 
     if (decoded.type !== 'refresh') {
       return res.status(401).json({
@@ -153,8 +200,14 @@ router.post('/refresh', async (req, res) => {
       });
     }
 
-    // Generate new tokens
+    // Hash the old refresh token for revocation tracking
+    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    logger.info(`Refresh token rotated — revoked token hash: ${tokenHash}, userId: ${decoded.userId}`);
+    // TODO: Store revocation record in Prisma (e.g. RevokedToken table)
+
+    // Generate new tokens and set cookies
     const tokens = generateTokens(decoded.userId, decoded.email);
+    setTokenCookies(res, tokens);
 
     res.json({
       success: true,
@@ -167,6 +220,12 @@ router.post('/refresh', async (req, res) => {
       error: 'Invalid refresh token'
     });
   }
+});
+
+// Logout — clear token cookies
+router.post('/logout', (req, res) => {
+  clearTokenCookies(res);
+  res.json({ success: true });
 });
 
 module.exports = router;

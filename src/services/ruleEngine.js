@@ -301,15 +301,20 @@ class RuleEngine extends EventEmitter {
       if (!this.isRunning) return;
 
       try {
-        // Use real market data if available, otherwise mock
-        const marketData = this.lastMarketData ?
-          { timestamp: Date.now(), pairs: this.lastMarketData } :
-          this.generateMockMarketData();
-        
-        const mockPortfolioData = {};
-        const mockPositionsData = {};
+        // Only evaluate rules when real market data is available.
+        // Never use mock/random data for real rule evaluation.
+        if (!this.lastMarketData) {
+          logger.debug('Rule evaluation skipped: no market data available');
+          return;
+        }
 
-        await this.evaluateRules(marketData, mockPortfolioData, mockPositionsData);
+        const marketData = { timestamp: Date.now(), pairs: this.lastMarketData };
+        
+        // TODO: Wire real portfolio and position data from positionManager
+        const portfolioData = {};
+        const positionsData = {};
+
+        await this.evaluateRules(marketData, portfolioData, positionsData);
       } catch (error) {
         logger.error('Error in rule evaluation loop:', error);
       }
