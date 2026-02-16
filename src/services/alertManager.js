@@ -207,21 +207,91 @@ class AlertManager {
           break;
           
         case 'webhook':
-          // TODO: Implement webhook delivery
+          this.sendWebhook(alert);
           break;
           
         case 'email':
-          // TODO: Implement email delivery
+          this.sendEmail(alert);
           break;
           
         case 'slack':
-          // TODO: Implement Slack delivery
+          this.sendSlack(alert);
           break;
           
         default:
           logger.warn(`Unknown alert channel: ${channel}`);
       }
     }
+  }
+
+  /**
+   * Send email alert
+   */
+  async sendEmail(alert) {
+    try {
+      const emailConfig = this.config.email;
+      if (!emailConfig || !emailConfig.enabled) return;
+
+      const subject = `[${alert.severity.toUpperCase()}] ${alert.type}: ${alert.message.substring(0, 50)}`;
+      const body = this.formatEmailBody(alert);
+
+      // For now, save to file (replace with actual email service)
+      const fs = require('fs').promises;
+      const path = require('path');
+      const emailDir = path.join(__dirname, '..', '..', 'data', 'emails');
+      await fs.mkdir(emailDir, { recursive: true });
+      
+      const filename = `email-${Date.now()}.txt`;
+      await fs.writeFile(
+        path.join(emailDir, filename),
+        `To: ${emailConfig.recipients?.join(', ') || 'admin@fitcher.com'}\nSubject: ${subject}\n\n${body}`
+      );
+
+      logger.info(`Email alert saved: ${filename}`);
+    } catch (error) {
+      logger.error('Failed to send email alert:', error);
+    }
+  }
+
+  /**
+   * Format email body
+   */
+  formatEmailBody(alert) {
+    const timestamp = new Date(alert.timestamp).toISOString();
+    return `
+Fitcher Trading Alert
+====================
+
+Time: ${timestamp}
+Type: ${alert.type}
+Severity: ${alert.severity.toUpperCase()}
+User: ${alert.userId}
+
+Message:
+${alert.message}
+
+Data:
+${JSON.stringify(alert.data, null, 2)}
+
+---
+Fitcher Trading System
+    `.trim();
+  }
+
+  /**
+   * Send webhook alert
+   */
+  async sendWebhook(alert) {
+    // TODO: Implement webhook integration
+    logger.debug('Webhook delivery not yet implemented');
+  }
+
+  /**
+   * Send Slack alert
+   */
+  async sendSlack(alert) {
+    // TODO: Implement Slack integration
+    logger.debug('Slack delivery not yet implemented');
   }
 
   /**
