@@ -3,15 +3,25 @@ const Order = require('../models/order');
 const OrderValidator = require('./orderValidator');
 const logger = require('../utils/logger');
 const redisClient = require('../utils/redis');
+const ExchangeAdapterFactory = require('../adapters/ExchangeAdapterFactory');
+const config = require('../config');
 
 class OrderManager extends EventEmitter {
-  constructor() {
+  constructor(options = {}) {
     super();
-    this.orders = new Map(); // In-memory storage for demo
+    this.orders = new Map();
     this.validator = new OrderValidator();
     this.orderQueue = [];
     this.processing = false;
     this.maxRetries = 3;
+    
+    // Trading mode: 'paper' or 'live'
+    this.tradingMode = options.tradingMode || config.TRADING_MODE || 'paper';
+    
+    // Exchange adapters per user
+    this.exchangeAdapters = new Map();
+    
+    logger.info(`OrderManager initialized in ${this.tradingMode} mode`);
   }
 
   // Create new order
@@ -253,10 +263,67 @@ class OrderManager extends EventEmitter {
     }
   }
 
+  // Get or create exchange adapter for user
+  async getExchangeAdapter(userId, exchange) {
+    const cacheKey = `${userId}_${exchange}`;
+    
+    if (this.exchangeAdapters.has(cacheKey)) {
+      return this.exchangeAdapters.get(cacheKey);
+    }
+
+    // Determine which adapter to use based on trading mode
+    const usePaper = this.tradingMode === 'paper';
+    const adapterName = usePaper ? 'paper' : exchange;
+    
+    try {
+      let adapter;
+      
+      if (usePaper) {
+        // Paper trading adapter
+        adapter = ExchangeAdapterFactory.getPaperAdapter({
+          initialBalance: 100000,
+          slippageModel: 'variable'
+        });
+        await adapter.connect({});
+      } else {
+        // Live trading - get credentials from database
+        const credentials = await this.getExchangeCredentials(userId, exchange);
+        adapter = await ExchangeAdapterFactory.getAdapterForUser(
+          userId,
+          adapterName,
+          credentials
+        );
+      }
+      
+      this.exchangeAdapters.set(cacheKey, adapter);
+      logger.info(`${usePaper ? 'Paper' : 'Live'} adapter created for ${userId} on ${exchange}`);
+      
+      return adapter;
+      
+    } catch (error) {
+      logger.error(`Failed to create adapter for ${userId} on ${exchange}:`, error);
+      throw error;
+    }
+  }
+
+  // Get exchange credentials from database
+  async getExchangeCredentials(userId, exchange) {
+    // TODO: Load from database
+    // For now, use environment variables for Kraken
+    if (exchange.toLowerCase() === 'kraken') {
+      return {
+        apiKey: config.KRAKEN_API_KEY,
+        apiSecret: config.KRAKEN_API_SECRET
+      };
+    }
+    
+    throw new Error(`No credentials configured for ${exchange}`);
+  }
+
   // Process individual order
   async processOrder(order) {
     try {
-      logger.info(`Processing order: ${order.id}`);
+      logger.info(`Processing order: ${order.id} (${this.tradingMode} mode)`);
 
       // Update status to open
       order.updateStatus('open');
@@ -265,9 +332,8 @@ class OrderManager extends EventEmitter {
       // Emit order opened event
       this.emit('orderOpened', order);
 
-      // In production, this would send to exchange
-      // For demo, simulate order execution
-      await this.simulateOrderExecution(order);
+      // Execute on exchange
+      await this.executeOrderOnExchange(order);
 
     } catch (error) {
       logger.error(`Failed to process order ${order.id}:`, error);
@@ -277,51 +343,156 @@ class OrderManager extends EventEmitter {
     }
   }
 
-  // Simulate order execution (for demo)
-  async simulateOrderExecution(order) {
-    // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Simulate partial fill for limit orders
-    if (order.type === 'limit') {
-      const fillAmount = order.amount * 0.5; // Fill 50%
-      const fillPrice = order.price;
-
-      order.addTrade({
-        price: fillPrice,
-        amount: fillAmount,
-        fee: fillAmount * fillPrice * 0.001, // 0.1% fee
-        timestamp: new Date()
-      });
-
-      await this.persistOrder(order);
-      this.emit('orderPartiallyFilled', order);
-
-      // Simulate remaining fill after delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      order.addTrade({
-        price: fillPrice,
-        amount: order.remainingAmount,
-        fee: order.remainingAmount * fillPrice * 0.001,
-        timestamp: new Date()
-      });
-
-    } else {
-      // Market order - fill immediately
-      const fillPrice = order.price || 50000; // Mock price
-      order.addTrade({
-        price: fillPrice,
+  // Execute order on exchange
+  async executeOrderOnExchange(order) {
+    try {
+      // Get adapter for this user/exchange
+      const adapter = await this.getExchangeAdapter(order.userId, order.exchange);
+      
+      // Check balance before executing
+      const balance = await adapter.getBalance();
+      logger.info(`Account balance:`, balance);
+      
+      // Create order on exchange
+      const exchangeOrder = await adapter.createOrder({
+        symbol: order.pair,
+        type: order.type,
+        side: order.side,
         amount: order.amount,
-        fee: order.amount * fillPrice * 0.001,
-        timestamp: new Date()
+        price: order.price,
+        timeInForce: order.timeInForce || 'GTC'
       });
+
+      // Update order with exchange details
+      order.exchangeOrderId = exchangeOrder.id;
+      order.exchangeStatus = exchangeOrder.status;
+      order.filledAmount = exchangeOrder.filled || 0;
+      order.remainingAmount = exchangeOrder.remaining || order.amount;
+      order.averagePrice = exchangeOrder.price;
+      
+      // Add trade if filled
+      if (exchangeOrder.filled > 0) {
+        order.addTrade({
+          price: exchangeOrder.fillPrice || exchangeOrder.price,
+          amount: exchangeOrder.filled,
+          fee: exchangeOrder.fee || 0,
+          timestamp: new Date()
+        });
+      }
+
+      // Update status based on exchange response
+      if (exchangeOrder.status === 'filled') {
+        order.updateStatus('filled');
+        await this.persistOrder(order);
+        this.emit('orderFilled', order);
+        logger.info(`Order ${order.id} filled: ${exchangeOrder.filled} @ ${exchangeOrder.price}`);
+        
+      } else if (exchangeOrder.status === 'open') {
+        // Order is open on exchange, start polling for updates
+        order.updateStatus('open');
+        await this.persistOrder(order);
+        this.emit('orderPartiallyFilled', order);
+        
+        // Start polling for order updates
+        this.pollOrderStatus(order, adapter);
+        
+      } else {
+        order.updateStatus(exchangeOrder.status);
+        await this.persistOrder(order);
+        this.emit('orderUpdated', order);
+      }
+
+    } catch (error) {
+      logger.error(`Exchange execution failed for order ${order.id}:`, error);
+      order.updateStatus('rejected', { 
+        error: error.message,
+        errorCode: error.code 
+      });
+      await this.persistOrder(order);
+      this.emit('orderRejected', order);
+      throw error;
     }
+  }
 
-    await this.persistOrder(order);
-    this.emit('orderFilled', order);
+  // Poll order status from exchange
+  async pollOrderStatus(order, adapter) {
+    const maxPolls = 60; // Poll for up to 5 minutes (5 second intervals)
+    let polls = 0;
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        polls++;
+        
+        // Get latest status from exchange
+        const status = await adapter.getOrderStatus(order.exchangeOrderId);
+        
+        // Update order
+        order.exchangeStatus = status.status;
+        order.filledAmount = status.filled || order.filledAmount;
+        order.remainingAmount = status.remaining || 0;
+        order.averagePrice = status.averagePrice || order.averagePrice;
+        
+        // Add any new trades
+        if (status.filled > order.filledAmount) {
+          const newFillAmount = status.filled - order.filledAmount;
+          order.addTrade({
+            price: status.averagePrice || order.price,
+            amount: newFillAmount,
+            fee: status.fee || 0,
+            timestamp: new Date()
+          });
+          
+          await this.persistOrder(order);
+          this.emit('orderPartiallyFilled', order);
+        }
+        
+        // Check if order is complete
+        if (status.status === 'filled' || status.status === 'cancelled' || status.status === 'rejected') {
+          clearInterval(pollInterval);
+          order.updateStatus(status.status);
+          await this.persistOrder(order);
+          
+          if (status.status === 'filled') {
+            this.emit('orderFilled', order);
+            logger.info(`Order ${order.id} fully filled`);
+          } else if (status.status === 'cancelled') {
+            this.emit('orderCancelled', order);
+            logger.info(`Order ${order.id} cancelled on exchange`);
+          }
+        }
+        
+        // Stop polling after max attempts
+        if (polls >= maxPolls) {
+          clearInterval(pollInterval);
+          logger.warn(`Stopped polling order ${order.id} after ${maxPolls} attempts`);
+        }
+        
+      } catch (error) {
+        logger.error(`Error polling order ${order.id}:`, error);
+        if (polls >= maxPolls) {
+          clearInterval(pollInterval);
+        }
+      }
+    }, 5000); // Poll every 5 seconds
+  }
 
-    logger.info(`Order ${order.id} executed successfully`);
+  // Get trading mode status
+  getTradingMode() {
+    return this.tradingMode;
+  }
+
+  // Shutdown - disconnect all adapters
+  async shutdown() {
+    logger.info('Shutting down OrderManager...');
+    
+    try {
+      await ExchangeAdapterFactory.disconnectAll();
+      this.exchangeAdapters.clear();
+      logger.info('OrderManager shutdown complete');
+    } catch (error) {
+      logger.error('Error during OrderManager shutdown:', error);
+      throw error;
+    }
   }
 
   // Persist order to Redis
