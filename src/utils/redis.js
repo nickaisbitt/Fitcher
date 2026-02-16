@@ -48,6 +48,16 @@ const redis = {
       logger.info('Connected to Redis successfully');
     } catch (error) {
       logger.error('Failed to connect to Redis, using mock mode:', error.message);
+      // Clean up the failed client to prevent memory leaks
+      if (redisClient) {
+        try {
+          redisClient.removeAllListeners();
+          await redisClient.quit();
+        } catch (cleanupError) {
+          logger.warn('Error cleaning up failed Redis client:', cleanupError.message);
+        }
+        redisClient = null;
+      }
       isMockMode = true;
       mockStore = new Map();
     }

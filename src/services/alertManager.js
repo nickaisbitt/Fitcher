@@ -18,6 +18,7 @@ class AlertManager {
     this.alertHistory = []; // Recent alerts
     this.userAlerts = new Map(); // userId -> Set of alertIds
     this.lastAlertTime = new Map(); // alertKey -> timestamp
+    this.subscriptions = []; // Store { event, id } for cleanup
     
     this.setupEventHandlers();
   }
@@ -27,56 +28,65 @@ class AlertManager {
    */
   setupEventHandlers() {
     // Listen for events that might trigger alerts
-    eventBus.subscribe('risk:circuitBreakerTriggered', (data) => {
-      this.sendAlert('circuit_breaker', {
-        userId: data.userId,
-        severity: 'critical',
-        message: `Circuit breaker triggered for user ${data.userId}`,
-        data
-      });
+    this.subscriptions.push({
+      event: 'risk:circuitBreakerTriggered',
+      id: eventBus.subscribe('risk:circuitBreakerTriggered', (data) => {
+        this.sendAlert('circuit_breaker', {
+          userId: data.userId,
+          severity: 'critical',
+          message: `Circuit breaker triggered for user ${data.userId}`,
+          data
+        });
+      })
     });
     
-    eventBus.subscribe('trading:orderFilled', (data) => {
-      const { order } = data;
-      
-      // Alert on large trades
-      const tradeValue = (order.filledAmount || 0) * (order.averagePrice || 0);
-      if (tradeValue > 50000) {
-        this.sendAlert('large_trade', {
-          userId: order.userId,
-          severity: 'info',
-          message: `Large trade executed: $${tradeValue.toFixed(2)}`,
-          data: { order, value: tradeValue }
-        });
-      }
-      
-      // Alert on significant PnL
-      if (order.realizedPnL) {
-        if (order.realizedPnL > 1000) {
-          this.sendAlert('profit', {
+    this.subscriptions.push({
+      event: 'trading:orderFilled',
+      id: eventBus.subscribe('trading:orderFilled', (data) => {
+        const { order } = data;
+        
+        // Alert on large trades
+        const tradeValue = (order.filledAmount || 0) * (order.averagePrice || 0);
+        if (tradeValue > 50000) {
+          this.sendAlert('large_trade', {
             userId: order.userId,
-            severity: 'success',
-            message: `Significant profit: $${order.realizedPnL.toFixed(2)}`,
-            data: { order }
-          });
-        } else if (order.realizedPnL < -1000) {
-          this.sendAlert('loss', {
-            userId: order.userId,
-            severity: 'warning',
-            message: `Significant loss: $${order.realizedPnL.toFixed(2)}`,
-            data: { order }
+            severity: 'info',
+            message: `Large trade executed: $${tradeValue.toFixed(2)}`,
+            data: { order, value: tradeValue }
           });
         }
-      }
+        
+        // Alert on significant PnL
+        if (order.realizedPnL) {
+          if (order.realizedPnL > 1000) {
+            this.sendAlert('profit', {
+              userId: order.userId,
+              severity: 'success',
+              message: `Significant profit: $${order.realizedPnL.toFixed(2)}`,
+              data: { order }
+            });
+          } else if (order.realizedPnL < -1000) {
+            this.sendAlert('loss', {
+              userId: order.userId,
+              severity: 'warning',
+              message: `Significant loss: $${order.realizedPnL.toFixed(2)}`,
+              data: { order }
+            });
+          }
+        }
+      })
     });
     
-    eventBus.subscribe('trading:signalBlocked', (data) => {
-      this.sendAlert('signal_blocked', {
-        userId: data.signal?.userId,
-        severity: 'warning',
-        message: 'Strategy signal blocked by risk manager',
-        data
-      });
+    this.subscriptions.push({
+      event: 'trading:signalBlocked',
+      id: eventBus.subscribe('trading:signalBlocked', (data) => {
+        this.sendAlert('signal_blocked', {
+          userId: data.signal?.userId,
+          severity: 'warning',
+          message: 'Strategy signal blocked by risk manager',
+          data
+        });
+      })
     });
   }
 
@@ -320,6 +330,17 @@ class AlertManager {
   setEnabled(enabled) {
     this.config.enabled = enabled;
     logger.info(`Alerts ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Shutdown: remove event subscriptions to prevent memory leaks
+   */
+  shutdown() {
+    for (const sub of this.subscriptions) {
+      eventBus.unsubscribe(sub.event, sub.id);
+    }
+    this.subscriptions = [];
+    logger.info('AlertManager shutdown complete');
   }
 }
 

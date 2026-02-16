@@ -17,6 +17,7 @@ class AuditLogger {
     
     this.logs = [];
     this.maxLogs = 10000;
+    this.subscriptions = []; // Store { event, id } for cleanup
     
     this.setupEventHandlers();
   }
@@ -26,44 +27,74 @@ class AuditLogger {
    */
   setupEventHandlers() {
     // Subscribe to all trading events
-    eventBus.subscribe('trading:orderCreated', (data) => {
-      this.log('ORDER_CREATED', data);
+    this.subscriptions.push({
+      event: 'trading:orderCreated',
+      id: eventBus.subscribe('trading:orderCreated', (data) => {
+        this.log('ORDER_CREATED', data);
+      })
     });
     
-    eventBus.subscribe('trading:orderFilled', (data) => {
-      this.log('ORDER_FILLED', data);
+    this.subscriptions.push({
+      event: 'trading:orderFilled',
+      id: eventBus.subscribe('trading:orderFilled', (data) => {
+        this.log('ORDER_FILLED', data);
+      })
     });
     
-    eventBus.subscribe('trading:orderCancelled', (data) => {
-      this.log('ORDER_CANCELLED', data);
+    this.subscriptions.push({
+      event: 'trading:orderCancelled',
+      id: eventBus.subscribe('trading:orderCancelled', (data) => {
+        this.log('ORDER_CANCELLED', data);
+      })
     });
     
-    eventBus.subscribe('trading:orderRejected', (data) => {
-      this.log('ORDER_REJECTED', data, 'warn');
+    this.subscriptions.push({
+      event: 'trading:orderRejected',
+      id: eventBus.subscribe('trading:orderRejected', (data) => {
+        this.log('ORDER_REJECTED', data, 'warn');
+      })
     });
     
-    eventBus.subscribe('trading:strategySignal', (data) => {
-      this.log('STRATEGY_SIGNAL', data);
+    this.subscriptions.push({
+      event: 'trading:strategySignal',
+      id: eventBus.subscribe('trading:strategySignal', (data) => {
+        this.log('STRATEGY_SIGNAL', data);
+      })
     });
     
-    eventBus.subscribe('trading:signalBlocked', (data) => {
-      this.log('SIGNAL_BLOCKED', data, 'warn');
+    this.subscriptions.push({
+      event: 'trading:signalBlocked',
+      id: eventBus.subscribe('trading:signalBlocked', (data) => {
+        this.log('SIGNAL_BLOCKED', data, 'warn');
+      })
     });
     
-    eventBus.subscribe('risk:circuitBreakerTriggered', (data) => {
-      this.log('CIRCUIT_BREAKER_TRIGGERED', data, 'error');
+    this.subscriptions.push({
+      event: 'risk:circuitBreakerTriggered',
+      id: eventBus.subscribe('risk:circuitBreakerTriggered', (data) => {
+        this.log('CIRCUIT_BREAKER_TRIGGERED', data, 'error');
+      })
     });
     
-    eventBus.subscribe('risk:circuitBreakerReset', (data) => {
-      this.log('CIRCUIT_BREAKER_RESET', data);
+    this.subscriptions.push({
+      event: 'risk:circuitBreakerReset',
+      id: eventBus.subscribe('risk:circuitBreakerReset', (data) => {
+        this.log('CIRCUIT_BREAKER_RESET', data);
+      })
     });
     
-    eventBus.subscribe('risk:checkFailed', (data) => {
-      this.log('RISK_CHECK_FAILED', data, 'warn');
+    this.subscriptions.push({
+      event: 'risk:checkFailed',
+      id: eventBus.subscribe('risk:checkFailed', (data) => {
+        this.log('RISK_CHECK_FAILED', data, 'warn');
+      })
     });
     
-    eventBus.subscribe('alert:sent', (data) => {
-      this.log('ALERT_SENT', data);
+    this.subscriptions.push({
+      event: 'alert:sent',
+      id: eventBus.subscribe('alert:sent', (data) => {
+        this.log('ALERT_SENT', data);
+      })
     });
   }
 
@@ -96,17 +127,18 @@ class AuditLogger {
       this.logs.shift();
     }
     
-    // Also log to winston
-    const message = `[AUDIT] ${eventType}: ${this.formatMessage(data)}`;
+    // Also log to winston (use sanitized data to prevent leaking secrets)
+    const sanitizedData = this.sanitizeData(data);
+    const message = `[AUDIT] ${eventType}: ${this.formatMessage(sanitizedData)}`;
     switch (level) {
       case 'error':
-        logger.error(message, data);
+        logger.error(message, sanitizedData);
         break;
       case 'warn':
-        logger.warn(message, data);
+        logger.warn(message, sanitizedData);
         break;
       default:
-        logger.info(message, data);
+        logger.info(message, sanitizedData);
     }
   }
 
@@ -175,10 +207,15 @@ class AuditLogger {
   sanitizeData(data) {
     if (!data || typeof data !== 'object') return data;
     
+    // Handle arrays - sanitize each element
+    if (Array.isArray(data)) {
+      return data.map(item => this.sanitizeData(item));
+    }
+    
     const sanitized = { ...data };
     
     // Remove sensitive fields
-    const sensitiveFields = ['password', 'apiKey', 'apiSecret', 'token', 'privateKey'];
+    const sensitiveFields = ['password', 'apiKey', 'apiSecret', 'token', 'privateKey', 'secret'];
     
     for (const field of sensitiveFields) {
       if (field in sanitized) {
@@ -342,6 +379,17 @@ class AuditLogger {
     this.logs = [];
     logger.info(`Cleared all ${count} audit logs`);
     return count;
+  }
+
+  /**
+   * Shutdown: remove event subscriptions to prevent memory leaks
+   */
+  shutdown() {
+    for (const sub of this.subscriptions) {
+      eventBus.unsubscribe(sub.event, sub.id);
+    }
+    this.subscriptions = [];
+    logger.info('AuditLogger shutdown complete');
   }
 }
 

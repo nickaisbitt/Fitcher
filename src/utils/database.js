@@ -229,7 +229,20 @@ function createMockPrisma() {
     // Prisma-level methods
     $transaction: async (fn) => {
       // Simple mock: just execute sequentially (no real transactional rollback)
-      if (typeof fn === 'function') return fn({ user: userModel, order: makeModel(mockOrders) });
+      if (typeof fn === 'function') {
+        return fn({
+          user: userModel,
+          apiKey: makeModel(mockApiKeys),
+          order: makeModel(mockOrders),
+          position: makeModel(mockPositions),
+          backtestResult: makeModel(mockBacktestResults),
+          tradingStrategy: makeModel(mockStrategies),
+          tradingRule: makeModel(mockRules),
+          dataSource: dataSourceModel,
+          ingestionJob: makeModel(mockIngestionJobs),
+          dataGap: makeModel(mockDataGaps)
+        });
+      }
       // Array-of-promises form
       return Promise.all(fn);
     },
