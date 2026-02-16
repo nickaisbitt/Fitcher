@@ -13,35 +13,68 @@
 
 ## Features
 
-- **Multi-Exchange Support**: Kraken, Binance, Coinbase
-- **AI Analysis**: OpenRouter integration (Claude, GPT-4, Gemini, Llama)
-- **Advanced Strategies**: Kelly Criterion, Pyramiding, Turtle Trading
+- **Multi-Exchange Support**: Kraken, Binance, Coinbase (via backend API)
+- **Advanced Strategies**: Momentum, Mean Reversion, Grid Trading
 - **Risk Management**: Circuit breakers, position sizing, trailing stops
-- **Technical Analysis**: RSI, MACD, Bollinger Bands, support/resistance
-- **Monte Carlo Simulation**: Statistical backtesting validation
-- **News Sentiment**: Real-time crypto news analysis
-- **Fear & Greed Index**: Market sentiment tracking
+- **Technical Analysis**: RSI, MACD, Bollinger Bands with incremental indicators
+- **Backtesting**: Historical data backtesting with realistic fee modeling
+- **Security**: JWT httpOnly cookies, AES-256-GCM encrypted API keys
 
 ## Quick Start
 
-1. Open `index.html` in your browser
-2. Select your exchange (Kraken/Binance/Coinbase)
-3. Click "Connect" to start receiving real-time prices
-4. (Optional) Add your OpenRouter API key for AI analysis
+### Prerequisites
+- Node.js 18+
+- Docker & Docker Compose (for local development)
 
-## Deploy
+### Local Development with Docker
 
-### Railway
+1. Start the required services (Postgres + Redis):
 ```bash
-npm install
+docker-compose up -d
+```
+
+2. Configure environment:
+```bash
+cp .env.example .env
+# Edit .env with your settings
+```
+
+3. Start the backend:
+```bash
 npm start
 ```
 
-### Local Development
+4. Open http://localhost:3000 in your browser
+
+### Running Tests
+
 ```bash
-python3 build.py  # Rebuild index.html from JSX
-npx serve .       # Serve locally
+npx vitest run
 ```
+
+### Running Backtests
+
+```bash
+# Single backtest
+BACKTEST_PAIR=BTC/USD BACKTEST_STRATEGY=momentum node scripts/runBacktest.js
+
+# Matrix backtest (multiple strategies/timeframes)
+BACKTEST_PAIR=BTC/USD node scripts/runBacktestMatrix.js
+```
+
+### Downloading Historical Data
+
+```bash
+node scripts/download-historical-data.js
+```
+
+## Architecture
+
+- **Frontend**: Single-page app served by backend (see `public/index.html`)
+- **Backend**: Express.js API with JWT authentication
+- **Database**: PostgreSQL via Prisma ORM
+- **Caching**: Redis for sessions and rate limiting
+- **Trading**: All exchange connections go through backend API
 
 ## Backtesting API
 
