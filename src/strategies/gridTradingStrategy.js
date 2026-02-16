@@ -2,58 +2,70 @@ const logger = require('../utils/logger');
 
 /**
  * GridTradingStrategy - Automated grid trading
- * Places buy/sell orders at fixed intervals around current price
- * Auto-rebalances when price moves out of range
+ * Places buy/sell orders at fixed intervals around current price.
+ * Auto-rebalances when price moves out of range.
+ *
+ * Grid range is derived from gridSpacing * gridLevels (no separate gridRange param).
+ * Tracks filled buys so sell signals are only emitted when there is inventory (spot mode).
+ * Enforces maxGrids on pending grid count.
+ * Returns all filled levels per candle, not just the first.
  */
 class GridTradingStrategy {
   constructor(config = {}) {
     this.config = {
-      gridLevels: config.gridLevels || 10, // Number of grid levels
-      gridSpacing: config.gridSpacing || 0.5, // Percentage between levels
-      gridRange: config.gridRange || 5, // Total range percentage
-      positionSize: config.positionSize || 0.05, // Size per grid level
-      maxGrids: config.maxGrids || 5, // Max concurrent grids
-      rebalanceThreshold: config.rebalanceThreshold || 0.8, // Rebalance when price at 80% of range
+      gridLevels: 10,        // Total number of grid levels (split evenly above/below center)
+      gridSpacing: 0.5,      // Percentage between levels
+      positionSize: 0.05,    // Fraction of balance per grid level
+      maxGrids: 20,          // Max concurrent pending grids
+      rebalanceThreshold: 0.8, // Rebalance when price reaches 80% of half-range from center
       ...config
     };
-    
+
     this.name = 'Grid Trading';
-    this.grids = []; // Active grid orders
+    this.grids = [];
     this.centerPrice = null;
     this.lastRebalance = null;
+    this.filledBuys = 0; // Net filled buy grids (for spot-mode sell limiting)
   }
 
   /**
-   * Generate trading signal
-   * @param {Object} marketData - Market data
+   * Generate trading signal(s) for the current candle.
+   * Returns a single signal object, or an array when multiple grid levels are
+   * crossed in one candle.
+   * @param {Object} marketData - Must contain at least { price }.
    */
   async generateSignal(marketData) {
     try {
       const { price } = marketData;
-      
-      // Initialize grid center if not set
+
+      // Initialize grid center on first call
       if (!this.centerPrice) {
         this.centerPrice = price;
         this.initializeGrids(price);
       }
-      
+
       // Check if rebalancing is needed
       if (this.shouldRebalance(price)) {
         return this.rebalanceGrid(price);
       }
-      
-      // Check for filled grid levels
-      const filledLevel = this.checkFilledLevels(price);
-      if (filledLevel) {
-        return this.handleFilledLevel(filledLevel, price);
+
+      // Check ALL filled levels (multiple can trigger per candle)
+      const filledLevels = this.checkFilledLevels(price);
+      if (filledLevels.length > 0) {
+        const signals = filledLevels.map(grid => this.handleFilledLevel(grid, price));
+        // Filter out hold signals (spot-mode blocks with no inventory)
+        const actionable = signals.filter(s => s.action !== 'hold');
+        if (actionable.length === 1) return actionable[0];
+        if (actionable.length > 1) return actionable;
+        // All were blocked — return the first hold reason
+        return signals[0];
       }
-      
+
       return {
         action: 'hold',
         confidence: 0,
         reason: 'Monitoring grid levels'
       };
-      
     } catch (error) {
       logger.error('Grid trading strategy error:', error);
       return {
@@ -65,76 +77,83 @@ class GridTradingStrategy {
   }
 
   /**
-   * Initialize grid levels around center price
-   * @param {number} centerPrice - Center price
+   * Initialize grid levels around center price.
+   * Buy grids are placed below center, sell grids above.
+   * @param {number} centerPrice
    */
   initializeGrids(centerPrice) {
     this.grids = [];
     const spacing = this.config.gridSpacing / 100;
     const halfLevels = Math.floor(this.config.gridLevels / 2);
-    
+
     for (let i = -halfLevels; i <= halfLevels; i++) {
       if (i === 0) continue; // Skip center
-      
+
       const levelPrice = centerPrice * (1 + i * spacing);
       const side = i < 0 ? 'buy' : 'sell';
-      
+
       this.grids.push({
         level: i,
         price: levelPrice,
         side,
         status: 'pending',
-        amount: this.calculateGridSize()
+        amount: this.config.positionSize
       });
     }
-    
-    // Sort by price
+
+    // Sort by price ascending
     this.grids.sort((a, b) => a.price - b.price);
-    
+
     logger.info(`Grid initialized with ${this.grids.length} levels around ${centerPrice.toFixed(2)}`);
   }
 
   /**
-   * Check if grid should be rebalanced
-   * @param {number} currentPrice - Current market price
+   * Determine whether the grid should rebalance.
+   *
+   * Range is derived from spacing and level count:
+   *   halfRange = halfLevels * spacing * centerPrice
+   *
+   * Trigger when price reaches rebalanceThreshold (e.g. 80%) of that half-range
+   * measured outward from center.
+   *
+   * @param {number} currentPrice
+   * @returns {boolean}
    */
   shouldRebalance(currentPrice) {
     if (!this.centerPrice) return false;
-    
-    const range = this.config.gridRange / 100;
-    const upperBound = this.centerPrice * (1 + range);
-    const lowerBound = this.centerPrice * (1 - range);
-    
-    // Rebalance if price is near edge of grid
-    if (currentPrice >= upperBound * this.config.rebalanceThreshold ||
-        currentPrice <= lowerBound * this.config.rebalanceThreshold) {
-      
-      // Don't rebalance too frequently
-      if (this.lastRebalance && Date.now() - this.lastRebalance < 300000) { // 5 min
+
+    const spacing = this.config.gridSpacing / 100;
+    const halfLevels = Math.floor(this.config.gridLevels / 2);
+    const halfRange = halfLevels * spacing * this.centerPrice;
+
+    const upperLimit = this.centerPrice + halfRange * this.config.rebalanceThreshold;
+    const lowerLimit = this.centerPrice - halfRange * this.config.rebalanceThreshold;
+
+    if (currentPrice >= upperLimit || currentPrice <= lowerLimit) {
+      // Don't rebalance more often than every 5 minutes
+      if (this.lastRebalance && Date.now() - this.lastRebalance < 300000) {
         return false;
       }
-      
       return true;
     }
-    
+
     return false;
   }
 
   /**
-   * Rebalance grid to new center price
-   * @param {number} newCenterPrice - New center price
+   * Rebalance grid to a new center price.
+   * Cancels all pending grids and reinitializes around the new center.
+   * @param {number} newCenterPrice
    */
   rebalanceGrid(newCenterPrice) {
     logger.info(`Rebalancing grid from ${this.centerPrice.toFixed(2)} to ${newCenterPrice.toFixed(2)}`);
-    
-    // Close all pending grid orders
+
     const pendingGrids = this.grids.filter(g => g.status === 'pending');
-    
-    // Reset and reinitialize
+
     this.centerPrice = newCenterPrice;
     this.lastRebalance = Date.now();
     this.initializeGrids(newCenterPrice);
-    
+
     return {
       action: 'hold',
       confidence: 0.5,
@@ -145,98 +164,115 @@ class GridTradingStrategy {
   }
 
   /**
-   * Check for filled grid levels
-   * @param {number} currentPrice - Current price
+   * Check ALL pending grid levels that have been crossed by current price.
+   * Returns an array of filled grids (may be empty).
+   * @param {number} currentPrice
+   * @returns {Object[]}
    */
   checkFilledLevels(currentPrice) {
+    const filled = [];
+
     for (const grid of this.grids) {
       if (grid.status !== 'pending') continue;
-      
-      // Check if price crossed grid level
+
       if (grid.side === 'buy' && currentPrice <= grid.price) {
-        return grid;
+        filled.push(grid);
       } else if (grid.side === 'sell' && currentPrice >= grid.price) {
-        return grid;
+        filled.push(grid);
       }
     }
-    
-    return null;
+
+    return filled;
   }
 
   /**
-   * Handle filled grid level
-   * @param {Object} filledGrid - Filled grid level
-   * @param {number} currentPrice - Current price
+   * Handle a single filled grid level.
+   *
+   * Returns a signal whose action matches the filled grid's side:
+   *   - buy grid filled  -> action: 'buy'
+   *   - sell grid filled -> action: 'sell'
+   *
+   * An opposite-side grid is PLACED (for the future) at the next level,
+   * subject to maxGrids enforcement and deduplication.
+   *
+   * Spot-mode sell limiting: sell signals are suppressed when filledBuys <= 0.
+   *
+   * @param {Object} filledGrid
+   * @param {number} currentPrice
+   * @returns {Object} signal
    */
   handleFilledLevel(filledGrid, currentPrice) {
     filledGrid.status = 'filled';
     filledGrid.filledAt = Date.now();
     filledGrid.filledPrice = currentPrice;
-    
-    logger.info(`Grid level ${filledGrid.level} filled at ${currentPrice.toFixed(2)}`);
-    
-    // Create opposite order at next level
-    const oppositeSide = filledGrid.side === 'buy' ? 'sell' : 'buy';
-    const nextLevel = filledGrid.side === 'buy' ? filledGrid.level + 1 : filledGrid.level - 1;
-    
-    // Find if there's already a grid at the next level
-    const existingGrid = this.grids.find(g => g.level === nextLevel);
-    
-    if (existingGrid && existingGrid.status === 'pending') {
-      // Use existing grid
+
+    // The signal action is the filled grid's own side
+    const action = filledGrid.side;
+
+    logger.info(`Grid level ${filledGrid.level} (${action}) filled at ${currentPrice.toFixed(2)}`);
+
+    // Track net buys for spot-mode sell limiting
+    if (action === 'buy') {
+      this.filledBuys++;
+    } else if (action === 'sell') {
+      this.filledBuys = Math.max(0, this.filledBuys - 1);
+    }
+
+    // Place an opposite order at the next level (for the future)
+    const oppositeSide = action === 'buy' ? 'sell' : 'buy';
+    const nextLevel = action === 'buy' ? filledGrid.level + 1 : filledGrid.level - 1;
+    const pendingCount = this.grids.filter(g => g.status === 'pending').length;
+
+    if (pendingCount < this.config.maxGrids) {
+      // Only create if no pending grid already exists at that level
+      const alreadyExists = this.grids.some(
+        g => g.level === nextLevel && g.status === 'pending'
+      );
+
+      if (!alreadyExists) {
+        const spacing = this.config.gridSpacing / 100;
+        this.grids.push({
+          level: nextLevel,
+          price: this.centerPrice * (1 + nextLevel * spacing),
+          side: oppositeSide,
+          status: 'pending',
+          amount: this.config.positionSize
+        });
+      }
+    }
+
+    // Spot-mode: suppress sell when we have no inventory
+    if (action === 'sell' && this.filledBuys <= 0) {
       return {
-        action: oppositeSide,
-        confidence: 0.7,
-        reason: `Grid level ${filledGrid.level} filled, placing ${oppositeSide} at level ${nextLevel}`,
-        price: currentPrice,
-        amount: filledGrid.amount,
-        gridLevel: nextLevel,
-        filledLevel: filledGrid.level
+        action: 'hold',
+        confidence: 0,
+        reason: `No position to sell (spot mode) at level ${filledGrid.level}`
       };
     }
-    
-    // Create new grid level
-    const spacing = this.config.gridSpacing / 100;
-    const newPrice = this.centerPrice * (1 + nextLevel * spacing);
-    
-    this.grids.push({
-      level: nextLevel,
-      price: newPrice,
-      side: oppositeSide,
-      status: 'pending',
-      amount: this.calculateGridSize()
-    });
-    
+
     return {
-      action: oppositeSide,
+      action,
       confidence: 0.7,
-      reason: `Grid level ${filledGrid.level} filled, creating new ${oppositeSide} at level ${nextLevel}`,
+      reason: `Grid ${action} at level ${filledGrid.level} (price ${currentPrice.toFixed(2)})`,
       price: currentPrice,
       amount: filledGrid.amount,
-      gridLevel: nextLevel,
-      filledLevel: filledGrid.level
+      gridLevel: filledGrid.level
     };
   }
 
   /**
-   * Calculate size for each grid level
-   */
-  calculateGridSize() {
-    return this.config.positionSize;
-  }
-
-  /**
-   * Get grid statistics
+   * Get grid statistics.
    */
   getGridStats() {
     const filled = this.grids.filter(g => g.status === 'filled').length;
     const pending = this.grids.filter(g => g.status === 'pending').length;
-    
+
     return {
       centerPrice: this.centerPrice,
       totalLevels: this.grids.length,
       filledLevels: filled,
       pendingLevels: pending,
+      filledBuys: this.filledBuys,
       lastRebalance: this.lastRebalance,
       grids: this.grids.map(g => ({
         level: g.level,
@@ -248,7 +284,7 @@ class GridTradingStrategy {
   }
 
   /**
-   * Get strategy configuration
+   * Get strategy configuration.
    */
   getConfig() {
     return {
@@ -258,30 +294,24 @@ class GridTradingStrategy {
   }
 
   /**
-   * Update strategy parameters
-   * @param {Object} params - New parameters
+   * Update strategy parameters.
+   * Always fully resets state so grids reinitialize on the next signal.
+   * @param {Object} params
    */
   updateParams(params) {
     Object.assign(this.config, params);
-    
-    // Reinitialize if spacing or levels changed
-    if (params.gridSpacing || params.gridLevels) {
-      if (this.centerPrice) {
-        this.initializeGrids(this.centerPrice);
-      }
-    }
-    
-    // Reset state between optimizer runs
+    // Full reset — grids will reinitialize on next generateSignal call
     this.reset();
   }
 
   /**
-   * Reset strategy
+   * Reset all strategy state.
    */
   reset() {
     this.grids = [];
     this.centerPrice = null;
     this.lastRebalance = null;
+    this.filledBuys = 0;
   }
 }
 

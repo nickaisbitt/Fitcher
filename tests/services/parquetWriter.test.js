@@ -18,6 +18,7 @@ vi.spyOn(fs.promises, 'access').mockResolvedValue(undefined);
 vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 1024 });
 vi.spyOn(fs.promises, 'readdir').mockResolvedValue([]);
 vi.spyOn(fs.promises, 'unlink').mockResolvedValue(undefined);
+vi.spyOn(fs.promises, 'rename').mockResolvedValue(undefined);
 
 // Mock parquetjs-lite
 const mockAppendRow = vi.fn().mockResolvedValue(undefined);
@@ -50,6 +51,7 @@ describe('ParquetWriter', () => {
     fs.promises.stat.mockResolvedValue({ size: 1024 });
     fs.promises.readdir.mockResolvedValue([]);
     fs.promises.unlink.mockResolvedValue(undefined);
+    fs.promises.rename.mockResolvedValue(undefined);
 
     parquet.ParquetWriter.openFile.mockResolvedValue({
       appendRow: mockAppendRow,

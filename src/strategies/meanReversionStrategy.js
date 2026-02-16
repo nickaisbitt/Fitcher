@@ -16,14 +16,14 @@ const logger = require('../utils/logger');
 class MeanReversionStrategy {
   constructor(config = {}) {
     this.config = {
-      bbPeriod: config.bbPeriod || 20,
-      bbStdDev: config.bbStdDev || 2,
-      rsiPeriod: config.rsiPeriod || 14,
-      rsiOverbought: config.rsiOverbought || 70,
-      rsiOversold: config.rsiOversold || 30,
-      positionSize: config.positionSize || 0.1, // fraction of balance
-      takeProfitAtMean: config.takeProfitAtMean !== false,
-      stopLossPercent: config.stopLossPercent || 2,
+      bbPeriod: 20,
+      bbStdDev: 2,
+      rsiPeriod: 14,
+      rsiOverbought: 70,
+      rsiOversold: 30,
+      positionSize: 0.1, // fraction of balance
+      takeProfitAtMean: true,
+      stopLossPercent: 2,
       ...config
     };
 
@@ -59,7 +59,7 @@ class MeanReversionStrategy {
 
         return {
           action: 'buy',
-          confidence: this.calculateConfidence(rsi, price, bb.lower, 'oversold'),
+          confidence: this.calculateConfidence(rsi, price, bb.lower),
           reason: `Price (${price.toFixed(2)}) below lower band (${bb.lower.toFixed(2)}) with RSI ${rsi.toFixed(2)}`,
           price,
           amount,
@@ -84,7 +84,25 @@ class MeanReversionStrategy {
    */
   checkExitSignals(marketData) {
     const { price, indicators } = marketData;
+
+    if (!indicators?.bb || indicators.rsi == null) {
+      return { action: 'hold', confidence: 0, reason: 'Indicators unavailable' };
+    }
+
     const { bb, rsi } = indicators;
+
+    // Stop loss (checked first — safety mechanism takes priority)
+    if (this.position.stopLoss && price <= this.position.stopLoss) {
+      const amount = this.position.amount;
+      this.position = null;
+      return {
+        action: 'sell',
+        confidence: 1.0,
+        reason: `Stop loss triggered at ${price.toFixed(2)}`,
+        price,
+        amount
+      };
+    }
 
     // Take profit: price reverts to middle band
     if (this.config.takeProfitAtMean && price >= bb.middle) {
@@ -112,33 +130,16 @@ class MeanReversionStrategy {
       };
     }
 
-    // Stop loss
-    if (this.position.stopLoss && price <= this.position.stopLoss) {
-      const amount = this.position.amount;
-      this.position = null;
-      return {
-        action: 'sell',
-        confidence: 1.0,
-        reason: `Stop loss triggered at ${price.toFixed(2)}`,
-        price,
-        amount
-      };
-    }
-
     return { action: 'hold', confidence: 0, reason: 'Holding position' };
   }
 
   /**
    * Calculate signal confidence (0-1)
    */
-  calculateConfidence(rsi, price, band, condition) {
+  calculateConfidence(rsi, price, band) {
     let confidence = 0.5;
 
-    if (condition === 'overbought') {
-      confidence += (rsi - this.config.rsiOverbought) / 30 * 0.3;
-    } else {
-      confidence += (this.config.rsiOversold - rsi) / 30 * 0.3;
-    }
+    confidence += (this.config.rsiOversold - rsi) / 30 * 0.3;
 
     const distance = Math.abs(price - band) / band;
     confidence += Math.min(distance * 5, 0.2);

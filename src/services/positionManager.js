@@ -107,8 +107,8 @@ class PositionManager {
         
         totalValue += summary.totalValue || 0;
         totalCost += summary.totalCost || 0;
-        totalRealizedPnL += summary.realizedPnL;
-        totalUnrealizedPnL += summary.unrealizedPnL;
+        totalRealizedPnL += summary.realizedPnL || 0;
+        totalUnrealizedPnL += summary.unrealizedPnL || 0;
         totalFees += summary.totalFees;
         
         if (summary.totalAmount > 0) {
@@ -232,7 +232,7 @@ class PositionManager {
         period,
         totalRealizedPnL: totalRealized,
         totalFees,
-        netPnL: totalRealized - totalFees,
+        netPnL: totalRealized, // fees are already deducted in realizedPnL
         assetBreakdown: Object.values(assetPnL),
         generatedAt: new Date()
       };
@@ -246,7 +246,7 @@ class PositionManager {
   async persistPosition(position) {
     try {
       const key = `position:${this.getPositionKey(position.userId, position.exchange, position.asset)}`;
-      await redisClient.set(key, position, 86400); // 24 hours TTL
+      await redisClient.set(key, position);
     } catch (error) {
       logger.error(`Failed to persist position:`, error);
     }
@@ -307,6 +307,12 @@ class PositionManager {
     } catch (error) {
       logger.error(`Failed to get position metrics for ${userId}:`, error);
       throw error;
+    }
+  }
+  async shutdown() {
+    logger.info(`Persisting ${this.positions.size} positions before shutdown`);
+    for (const position of this.positions.values()) {
+      await this.persistPosition(position);
     }
   }
 }

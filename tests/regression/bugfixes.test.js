@@ -571,16 +571,9 @@ describe('Regression: RuleEngine — no mock data in production evaluation', () 
     engine.stopEvaluationLoop();
   });
 
-  it('generateMockMarketData exists but is never called by the loop', () => {
+  it('generateMockMarketData was removed (dead code deleted)', () => {
     const engine = new RuleEngine();
-    const mockSpy = vi.spyOn(engine, 'generateMockMarketData');
-
-    engine.startEvaluationLoop();
-    vi.advanceTimersByTime(30001);
-
-    expect(mockSpy).not.toHaveBeenCalled();
-
-    engine.stopEvaluationLoop();
+    expect(engine.generateMockMarketData).toBeUndefined();
   });
 
   it('with real market data, evaluation proceeds', () => {
@@ -596,16 +589,9 @@ describe('Regression: RuleEngine — no mock data in production evaluation', () 
     engine.stopEvaluationLoop();
   });
 
-  it('no random prices in evaluation results', () => {
+  it('generateMockMarketData was removed (dead code deleted)', () => {
     const engine = new RuleEngine();
-    const mockSpy = vi.spyOn(engine, 'generateMockMarketData');
-
-    engine.startEvaluationLoop();
-    vi.advanceTimersByTime(20001);
-
-    expect(mockSpy).not.toHaveBeenCalled();
-
-    engine.stopEvaluationLoop();
+    expect(engine.generateMockMarketData).toBeUndefined();
   });
 
   it('debug log emitted when skipping', () => {
@@ -664,16 +650,9 @@ describe('Regression: StrategyManager — no mock data in production execution',
     mgr.stopExecutionLoop();
   });
 
-  it('no random prices used', () => {
+  it('generateMockMarketData was removed (dead code deleted)', () => {
     const mgr = new StrategyManager();
-    const mockSpy = vi.spyOn(mgr, 'generateMockMarketData');
-
-    mgr.startExecutionLoop();
-    vi.advanceTimersByTime(60001);
-
-    expect(mockSpy).not.toHaveBeenCalled();
-
-    mgr.stopExecutionLoop();
+    expect(mgr.generateMockMarketData).toBeUndefined();
   });
 
   it('debug log emitted when skipping', () => {

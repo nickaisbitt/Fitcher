@@ -540,10 +540,12 @@ describe('Grid trading strategy edge cases', () => {
     // Price drops to a lower grid level
     const signal = await strategy.generateSignal({ price: 98 });
 
-    // If a buy grid was hit, we should get a signal
-    if (signal.action !== 'hold') {
-      expect(['buy', 'sell']).toContain(signal.action);
-    }
+    // Signal can be array (multiple fills) or single object
+    const signals = Array.isArray(signal) ? signal : [signal];
+    
+    // If any buy grid was hit, we should get at least one buy signal
+    const hasActionable = signals.some(s => s && s.action !== 'hold');
+    expect(hasActionable).toBe(true);
   });
 
   it('Sell at upper grid levels', async () => {

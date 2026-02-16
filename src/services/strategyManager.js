@@ -398,34 +398,11 @@ class StrategyManager extends EventEmitter {
     }
   }
 
-  // Generate mock market data for testing
-  generateMockMarketData() {
-    return {
-      timestamp: Date.now(),
-      pairs: {
-        'BTC/USD': {
-          price: 50000 + Math.random() * 1000,
-          bid: 49950,
-          ask: 50050,
-          volume: 1000,
-          change24h: 2.5
-        },
-        'ETH/USD': {
-          price: 3000 + Math.random() * 100,
-          bid: 2995,
-          ask: 3005,
-          volume: 5000,
-          change24h: 1.8
-        }
-      }
-    };
-  }
-
   // Persist strategy to Redis
   async persistStrategy(strategy) {
     try {
       const key = `strategy:${strategy.id}`;
-      await redisClient.set(key, strategy.toJSON ? strategy.toJSON() : strategy, 86400); // 24 hours TTL
+      await redisClient.set(key, strategy.toJSON ? strategy.toJSON() : strategy);
     } catch (error) {
       logger.error(`Failed to persist strategy ${strategy.id}:`, error);
     }

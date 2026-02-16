@@ -14,13 +14,13 @@ const logger = require('../utils/logger');
 class MomentumStrategy {
   constructor(config = {}) {
     this.config = {
-      fastEma: config.fastEma || 12,
-      slowEma: config.slowEma || 26,
-      signalEma: config.signalEma || 9,
-      macdThreshold: config.macdThreshold || 0,
-      positionSize: config.positionSize || 0.15,
-      trailingStopPercent: config.trailingStopPercent || 3,
-      minTrendStrength: config.minTrendStrength || 0.5,
+      fastEma: 12,
+      slowEma: 26,
+      signalEma: 9,
+      macdThreshold: 0,
+      positionSize: 0.15,
+      trailingStopPercent: 3,
+      minTrendStrength: 0.5,
       ...config
     };
 
@@ -179,7 +179,8 @@ class MomentumStrategy {
    * Scale position size with trend strength
    */
   calculatePositionSize(marketData, trendStrength) {
-    return this.config.positionSize * (0.5 + trendStrength * 0.5);
+    const rawSize = this.config.positionSize * (0.5 + trendStrength * 0.5);
+    return Math.min(rawSize, 0.99); // Never exceed 99% of balance
   }
 
   /**

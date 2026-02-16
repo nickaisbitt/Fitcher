@@ -333,36 +333,11 @@ class RuleEngine extends EventEmitter {
     }
   }
 
-  // Generate mock market data for testing
-  generateMockMarketData() {
-    return {
-      timestamp: Date.now(),
-      pairs: {
-        'BTC/USD': {
-          price: 50000 + Math.random() * 1000,
-          bid: 49950,
-          ask: 50050,
-          volume: 1000 + Math.random() * 500,
-          avgVolume: 1200,
-          change24h: 2.5
-        },
-        'ETH/USD': {
-          price: 3000 + Math.random() * 100,
-          bid: 2995,
-          ask: 3005,
-          volume: 5000 + Math.random() * 1000,
-          avgVolume: 5500,
-          change24h: 1.8
-        }
-      }
-    };
-  }
-
   // Persist rule to Redis
   async persistRule(rule) {
     try {
       const key = `rule:${rule.id}`;
-      await redisClient.set(key, rule.toJSON ? rule.toJSON() : rule, 86400); // 24 hours TTL
+      await redisClient.set(key, rule.toJSON ? rule.toJSON() : rule);
     } catch (error) {
       logger.error(`Failed to persist rule ${rule.id}:`, error);
     }

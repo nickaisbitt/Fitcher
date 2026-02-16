@@ -52,8 +52,12 @@ class ParquetWriter {
    */
   parseTimestamp(timestampStr) {
     if (!timestampStr) return null;
-    const date = new Date(timestampStr);
-    return date.getTime();
+    const ts = new Date(timestampStr).getTime();
+    if (isNaN(ts)) {
+      logger.warn(`Invalid timestamp in parquet data: ${timestampStr}`);
+      return null;
+    }
+    return ts;
   }
 
   /**
@@ -131,17 +135,45 @@ class ParquetWriter {
   }
 
   /**
-   * Append candles to existing Parquet file (or create new)
+   * Append candles to existing Parquet file(s) (or create new)
+   * Groups candles by year-month so batches spanning month boundaries
+   * are written to the correct files.
    * @param {string} pair - Trading pair
    * @param {string} timeframe - Timeframe
    * @param {Array} candles - Candles to append
    */
   async appendCandles(pair, timeframe, candles) {
+    // Group candles by year-month so each goes to the correct file
+    const groups = new Map();
+    for (const candle of candles) {
+      const ym = this.getYearMonth(candle.timestamp);
+      if (!groups.has(ym)) groups.set(ym, []);
+      groups.get(ym).push(candle);
+    }
+
+    const results = [];
+    for (const [yearMonth, groupCandles] of groups) {
+      const result = await this._appendToFile(pair, timeframe, yearMonth, groupCandles);
+      results.push(result);
+    }
+
+    return results.length === 1 ? results[0] : results;
+  }
+
+  /**
+   * Internal: read-merge-write candles to a single year-month Parquet file
+   * Uses atomic write (temp file + rename) to prevent data loss on crash.
+   * @param {string} pair - Trading pair
+   * @param {string} timeframe - Timeframe
+   * @param {string} yearMonth - Target year-month (YYYY-MM)
+   * @param {Array} candles - Candles to append
+   */
+  async _appendToFile(pair, timeframe, yearMonth, candles) {
     const normalizedPair = pair.replace('/', '-');
-    const yearMonth = this.getYearMonth(candles[0].timestamp);
     const fileName = `${yearMonth}.parquet`;
     const dirPath = path.join(this.basePath, normalizedPair, timeframe);
     const filePath = path.join(dirPath, fileName);
+    const tmpPath = filePath + '.tmp';
 
     try {
       await fs.mkdir(dirPath, { recursive: true });
@@ -173,10 +205,10 @@ class ParquetWriter {
         }
       }
 
-      // Rewrite file with merged data
+      // Write to temporary file first for crash safety
       const writer = await parquet.ParquetWriter.openFile(
         this.schema,
-        filePath,
+        tmpPath,
         this.writeOptions
       );
 
@@ -193,6 +225,9 @@ class ParquetWriter {
 
       await writer.close();
 
+      // Atomically replace the real file with the temp file
+      await fs.rename(tmpPath, filePath);
+
       const stats = await fs.stat(filePath);
       const newCandles = unique.length - existingCandles.length;
 
@@ -207,6 +242,12 @@ class ParquetWriter {
         endDate: new Date(unique[unique.length - 1].timestamp)
       };
     } catch (error) {
+      // Clean up temp file if it exists
+      try {
+        await fs.unlink(tmpPath);
+      } catch {
+        // Temp file may not exist, ignore
+      }
       logger.error(`Failed to append candles to ${filePath}:`, error);
       throw error;
     }
@@ -228,6 +269,9 @@ class ParquetWriter {
         // Parse timestamp string to number (handles both string and BigInt formats)
         const timestamp = this.parseTimestamp(record.timestamp);
         
+        // Skip records with invalid/corrupt timestamps
+        if (timestamp === null) continue;
+
         candles.push({
           timestamp,
           open: record.open,

@@ -11,30 +11,30 @@ class EnhancedRiskManager extends EventEmitter {
     super();
     this.config = {
       // Portfolio limits
-      maxPositionSize: config.maxPositionSize || 0.2, // 20% per position
-      maxTotalExposure: config.maxTotalExposure || 0.8, // 80% total
-      maxConcentration: config.maxConcentration || 0.4, // 40% per asset
+      maxPositionSize: 0.2, // 20% per position
+      maxTotalExposure: 0.8, // 80% total
+      maxConcentration: 0.4, // 40% per asset
       
       // Daily limits
-      maxDailyLoss: config.maxDailyLoss || 0.05, // 5% max daily loss
-      maxDailyTrades: config.maxDailyTrades || 100,
-      maxDailyVolume: config.maxDailyVolume || 100000, // USD
+      maxDailyLoss: 0.05, // 5% max daily loss
+      maxDailyTrades: 100,
+      maxDailyVolume: 100000, // USD
       
       // Drawdown limits
-      maxDrawdownPercent: config.maxDrawdownPercent || 10, // 10% max drawdown
-      maxConsecutiveLosses: config.maxConsecutiveLosses || 5,
+      maxDrawdownPercent: 10, // 10% max drawdown
+      maxConsecutiveLosses: 5,
       
       // Circuit breaker
-      circuitBreakerThreshold: config.circuitBreakerThreshold || 0.1,
-      circuitBreakerDuration: config.circuitBreakerDuration || 3600000, // 1 hour
+      circuitBreakerThreshold: 0.1,
+      circuitBreakerDuration: 3600000, // 1 hour
       
       // Cooldowns
-      tradeCooldownMs: config.tradeCooldownMs || 1000,
-      strategyCooldownMs: config.strategyCooldownMs || 60000, // 1 min after loss
+      tradeCooldownMs: 1000,
+      strategyCooldownMs: 60000, // 1 min after loss
       
       // Price protection
-      maxSlippagePercent: config.maxSlippagePercent || 2,
-      maxPriceDeviationPercent: config.maxPriceDeviationPercent || 5,
+      maxSlippagePercent: 2,
+      maxPriceDeviationPercent: 5,
       
       ...config
     };
@@ -277,7 +277,8 @@ class EnhancedRiskManager extends EventEmitter {
   checkTotalExposure(userId, tradeParams, portfolio) {
     const currentExposure = portfolio.totalExposure || 0;
     const tradeValue = (tradeParams.amount || 0) * (tradeParams.price || 0);
-    const newExposure = currentExposure + tradeValue;
+    const delta = tradeParams.side?.toLowerCase() === 'sell' ? -tradeValue : tradeValue;
+    const newExposure = currentExposure + delta;
     const portfolioValue = portfolio.totalValue || 100000;
     const exposureRatio = newExposure / portfolioValue;
     
@@ -306,7 +307,8 @@ class EnhancedRiskManager extends EventEmitter {
     const currentPosition = portfolio.positions?.find(p => p.asset === asset);
     const currentValue = currentPosition?.totalValue || 0;
     const tradeValue = (tradeParams.amount || 0) * (tradeParams.price || 0);
-    const newValue = currentValue + tradeValue;
+    const delta = tradeParams.side?.toLowerCase() === 'sell' ? -tradeValue : tradeValue;
+    const newValue = currentValue + delta;
     
     const portfolioValue = portfolio.totalValue || 100000;
     const concentration = newValue / portfolioValue;

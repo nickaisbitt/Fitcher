@@ -16,12 +16,20 @@ class MarketDataWebSocket extends EventEmitter {
     this.heartbeatInterval = config.heartbeatInterval || 30000;
     this.heartbeatTimer = null;
     this.lastMessageTime = null;
+    this.isReconnecting = false;
   }
 
   async connect() {
     try {
       logger.info(`[${this.exchangeName}] Connecting to WebSocket...`);
       
+      // Clean up old WebSocket before creating a new one
+      if (this.ws) {
+        this.ws.removeAllListeners();
+        this.ws.terminate();
+        this.ws = null;
+      }
+
       const wsUrl = this.getWebSocketUrl();
       this.ws = new WebSocket(wsUrl);
       
@@ -328,17 +336,23 @@ class MarketDataWebSocket extends EventEmitter {
   }
 
   async reconnect() {
-    this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-    
-    logger.info(`[${this.exchangeName}] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-    
-    await new Promise(resolve => setTimeout(resolve, delay));
-    
+    if (this.isReconnecting) return;
+    this.isReconnecting = true;
     try {
-      await this.connect();
-    } catch (error) {
-      logger.error(`[${this.exchangeName}] Reconnection failed:`, error);
+      this.reconnectAttempts++;
+      const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+      
+      logger.info(`[${this.exchangeName}] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      try {
+        await this.connect();
+      } catch (error) {
+        logger.error(`[${this.exchangeName}] Reconnection failed:`, error);
+      }
+    } finally {
+      this.isReconnecting = false;
     }
   }
 
@@ -349,8 +363,7 @@ class MarketDataWebSocket extends EventEmitter {
         
         if (timeSinceLastMessage > this.heartbeatInterval * 2) {
           logger.warn(`[${this.exchangeName}] No message received for ${timeSinceLastMessage}ms, reconnecting...`);
-          this.ws.terminate();
-          this.reconnect();
+          this.ws.terminate(); // Will fire 'close' event, which calls handleClose -> reconnect
         }
       }
     }, this.heartbeatInterval);
