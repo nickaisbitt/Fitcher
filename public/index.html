@@ -212,29 +212,37 @@ const KRAKEN_PAIRS = {
 };
 
 // Multi-Exchange Configuration
+// NOTE: Direct exchange connections disabled - all trading goes through backend API
+// This prevents API key exposure and CORS issues. Configure exchanges in backend.
 const EXCHANGES = {
   kraken: {
     name: 'Kraken',
     icon: '🦑',
-    wsUrl: 'wss://ws.kraken.com',
-    restUrl: 'https://api.kraken.com',
-    color: 'purple'
+    wsUrl: null, // Disabled - use backend /api/market-data/stream
+    restUrl: null, // Disabled - use backend /api/market-data
+    color: 'purple',
+    enabled: false
   },
   binance: {
     name: 'Binance',
     icon: '🟡',
-    wsUrl: 'wss://stream.binance.com:9443/ws',
-    restUrl: 'https://api.binance.com',
-    color: 'amber'
+    wsUrl: null,
+    restUrl: null,
+    color: 'amber',
+    enabled: false
   },
   coinbase: {
     name: 'Coinbase',
     icon: '🔵',
-    wsUrl: 'wss://ws-feed.exchange.coinbase.com',
-    restUrl: 'https://api.exchange.coinbase.com',
-    color: 'blue'
+    wsUrl: null,
+    restUrl: null,
+    color: 'blue',
+    enabled: false
   }
 };
+
+// Backend API base URL - all exchange requests go through here
+const API_BASE = window.location.origin;
 
 // Binance symbol conversion
 const toBinanceSymbol = (pair) => pair.replace('/', '').toLowerCase();
@@ -3099,10 +3107,16 @@ function KrakenTradingBot() {
     return fg;
   }, [addLog]);
 
-  // ==================== KRAKEN WEBSOCKET API ====================
+  // ==================== BACKEND API (Direct exchange connections disabled) ====================
+  // All market data now comes through the backend API to prevent:
+  // 1. API key exposure in frontend
+  // 2. CORS issues with exchange APIs
+  // 3. Duplicate trading logic
+  // Configure exchanges in the backend, not frontend
+  
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      addLog('Already connected to Kraken', 'warning');
+      addLog('Already connected to market data stream', 'warning');
       return;
     }
 
@@ -3113,29 +3127,25 @@ function KrakenTradingBot() {
     }
 
     setApiStatus('connecting');
-    addLog('Connecting to Kraken WebSocket (wss://ws.kraken.com)...');
+    addLog('Connecting to backend market data stream...');
 
     try {
-      wsRef.current = new WebSocket('wss://ws.kraken.com');
+      // Connect to backend WebSocket instead of direct exchange
+      wsRef.current = new WebSocket(`${API_BASE}/api/market-data/ws`);
 
       wsRef.current.onopen = () => {
         setApiStatus('connected');
-        addLog('✓ Connected to Kraken WebSocket', 'success');
+        addLog('✓ Connected to backend market data stream', 'success');
         playSound('buy');
 
-        // Subscribe to ticker for pairs (convert BTC to XBT for Kraken)
-        const krakenPairs = TRADING_PAIRS.slice(0, 20).map(p => {
-          if (p === 'BTC/USD') return 'XBT/USD';
-          return p;
-        });
-
+        // Subscribe through backend
         wsRef.current.send(JSON.stringify({
-          event: 'subscribe',
-          pair: krakenPairs,
-          subscription: { name: 'ticker' }
+          action: 'subscribe',
+          pairs: TRADING_PAIRS.slice(0, 20),
+          exchange: 'kraken' // Default exchange, backend handles conversion
         }));
 
-        addLog(`Subscribed to ${krakenPairs.length} pairs`, 'success');
+        addLog(`Subscribed to ${TRADING_PAIRS.slice(0, 20).length} pairs via backend`, 'success');
       };
 
       wsRef.current.onmessage = (event) => {
@@ -3230,33 +3240,22 @@ function KrakenTradingBot() {
       pollingIntervalRef.current = null;
     }
     setApiStatus('disconnected');
-    addLog(`Disconnected from ${EXCHANGES[activeExchange]?.name || 'exchange'}`);
+    addLog(`Disconnected from market data stream`);
   }, [addLog, activeExchange]);
 
-  // ==================== BINANCE WEBSOCKET API ====================
+  // ==================== EXCHANGE SWITCHING DISABLED ====================
+  // Direct exchange connections disabled - all data flows through backend
+  // Exchange selection now happens in backend configuration
+  
   const connectBinance = useCallback(() => {
-    if (binanceWsRef.current?.readyState === WebSocket.OPEN) {
-      addLog('Already connected to Binance', 'warning');
-      return;
-    }
+    addLog('Binance connection disabled - use backend API', 'warning');
+    addLog('Configure exchange in backend settings', 'info');
+  }, [addLog]);
 
-    setApiStatus('connecting');
-    setActiveExchange('binance');
-    addLog('🟡 Connecting to Binance WebSocket...');
-
-    try {
-      // Subscribe to multiple tickers
-      const symbols = TRADING_PAIRS.slice(0, 20).map(p => toBinanceSymbol(p.replace('/USD', '/USDT')) + '@ticker').join('/');
-      binanceWsRef.current = new WebSocket(`wss://stream.binance.com:9443/ws/${symbols}`);
-
-      binanceWsRef.current.onopen = () => {
-        setApiStatus('connected');
-        addLog('✓ Connected to Binance WebSocket', 'success');
-        playSound('buy');
-      };
-
-      binanceWsRef.current.onmessage = (event) => {
-        try {
+  const connectCoinbase = useCallback(() => {
+    addLog('Coinbase connection disabled - use backend API', 'warning');
+    addLog('Configure exchange in backend settings', 'info');
+  }, [addLog]);
           const data = JSON.parse(event.data);
 
           if (data.e === '24hrTicker') {
@@ -3408,55 +3407,45 @@ function KrakenTradingBot() {
   // Polling interval ref for REST API fallback
   const pollingIntervalRef = useRef(null);
 
-  // ==================== REST API FALLBACK (When WebSocket fails) ====================
+  // ==================== REST API FALLBACK (Now uses backend) ====================
+  // Direct exchange REST calls disabled - use backend API instead
   const connectViaRestAPI = useCallback(async () => {
     setApiStatus('connecting');
-    addLog('Connecting via REST API (polling mode)...');
+    addLog('Connecting via backend REST API...');
 
     const fetchPrices = async () => {
       try {
-        // Fetch ticker for major pairs
-        const pairs = ['XXBTZUSD', 'XETHZUSD', 'SOLUSD', 'XRPUSD', 'DOGEUSD'].join(',');
-        const url = `https://api.kraken.com/0/public/Ticker?pair=${pairs}`;
-
-        // Try with allorigins CORS proxy (most reliable)
-        const response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
+        // Use backend API instead of direct exchange
+        const response = await fetch(`${API_BASE}/api/market-data/ticker`, {
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+        
         const data = await response.json();
 
-        if (data.error && data.error.length > 0) {
-          throw new Error(data.error[0]);
-        }
-
-        // Map Kraken pairs back to our format
-        const pairMapping = {
-          'XXBTZUSD': 'BTC/USD', 'XETHZUSD': 'ETH/USD', 'SOLUSD': 'SOL/USD',
-          'XXRPZUSD': 'XRP/USD', 'XRPUSD': 'XRP/USD', 'XDGUSD': 'DOGE/USD', 'DOGEUSD': 'DOGE/USD'
-        };
-
-        Object.entries(data.result || {}).forEach(([krakenPair, tickerData]) => {
-          const ourPair = pairMapping[krakenPair];
-          if (!ourPair) return;
-
-          const price = parseFloat(tickerData.c?.[0] || 0);
-          const open = parseFloat(tickerData.o || price);
-          const change24h = open > 0 ? ((price - open) / open * 100) : 0;
-
+        // Backend returns normalized format
+        Object.entries(data.prices || {}).forEach(([pair, tickerData]) => {
+          const price = parseFloat(tickerData.price || 0);
+          
           setPrices(prev => ({
             ...prev,
-            [ourPair]: {
+            [pair]: {
               price,
-              change24h,
-              high24h: parseFloat(tickerData.h?.[1] || price),
-              low24h: parseFloat(tickerData.l?.[1] || price),
-              volume: parseFloat(tickerData.v?.[1] || 0),
-              bid: parseFloat(tickerData.b?.[0] || price),
-              ask: parseFloat(tickerData.a?.[0] || price)
+              change24h: tickerData.change24h || 0,
+              high24h: parseFloat(tickerData.high24h || price),
+              low24h: parseFloat(tickerData.low24h || price),
+              volume: parseFloat(tickerData.volume || 0),
+              bid: parseFloat(tickerData.bid || price),
+              ask: parseFloat(tickerData.ask || price)
             }
           }));
 
           // Update price history
-          if (!priceHistoryRef.current[ourPair]) {
-            priceHistoryRef.current[ourPair] = [];
+          if (!priceHistoryRef.current[pair]) {
+            priceHistoryRef.current[pair] = [];
           }
           priceHistoryRef.current[ourPair].push(price);
           if (priceHistoryRef.current[ourPair].length > 1000) {
