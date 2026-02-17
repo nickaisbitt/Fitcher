@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 /**
- * strategy-tester.js
- * Comprehensive strategy testing framework
- * Tests 20+ strategy variants across 4 time periods
- * Implements composite scoring for ranking
- * 
- * Research-backed parameters:
- * - RSI 40-60 for trend health
- * - ADX > 25 filters choppy markets
- * - Volume confirmation adds 30% accuracy
- * - EMA 9/21 responsive for crypto
+ * Strategy tester
+ *
+ * Runs multiple strategy variants across multiple periods and ranks them by
+ * composite score. Designed to be resumable and usable in "fast" mode.
+ *
+ * Usage:
+ *   NODE_ENV=test node scripts/strategy-tester.js
+ *   NODE_ENV=test node scripts/strategy-tester.js --periods=bull,recent --limit=8 --pair=BTC_USDT
  */
 
 const fs = require('fs').promises;
@@ -22,258 +20,443 @@ const MeanReversionStrategyV2 = require('../src/strategies/MeanReversionStrategy
 
 const CONFIG = {
   dataDir: path.join(__dirname, '..', 'data', 'historical'),
-  pairs: ['BTC_USDT'],
-  timeframes: ['1h', '4h', '1d'],
-  initialBalance: 100000
+  pair: 'BTC_USDT',
+  initialBalance: 100000,
+  minCombinedConfidence: 0.5,
+  progressFile: path.join(__dirname, '..', 'data', 'historical', 'strategy-test-progress.json'),
 };
 
-// Test periods - Just Bull for quick results
-const PERIODS = {
-  bull: { name: 'Bull', start: '2020-01-01', end: '2021-12-31' }
+const ALL_PERIODS = {
+  full: { name: 'Full', start: '2019-01-01', end: '2026-02-16' },
+  bull: { name: 'Bull', start: '2020-01-01', end: '2021-12-31' },
+  bear: { name: 'Bear', start: '2022-01-01', end: '2023-12-31' },
+  recent: { name: 'Recent', start: '2025-08-01', end: '2026-02-16' },
 };
 
-// Quick Strategy Variants - 10 key strategies
-const STRATEGIES = [
-  // EMA comparison
-  { id: 'A1', name: 'EMA_9_21', group: 'EMA', momentum: { emaFast: 9, emaSlow: 21, requireRsiFilter: false, requireAdxFilter: false } },
-  { id: 'A2', name: 'EMA_12_26', group: 'EMA', momentum: { emaFast: 12, emaSlow: 26, requireRsiFilter: false, requireAdxFilter: false } },
-  { id: 'A3', name: 'EMA_20_50', group: 'EMA', momentum: { emaFast: 20, emaSlow: 50, requireRsiFilter: false, requireAdxFilter: false } },
-  
-  // RSI comparison
-  { id: 'B1', name: 'RSI_50', group: 'RSI', momentum: { rsiThreshold: 50, requireAdxFilter: false } },
-  { id: 'B2', name: 'RSI_40', group: 'RSI', momentum: { rsiThreshold: 40, requireAdxFilter: false } },
-  { id: 'B4', name: 'RSI_OFF', group: 'RSI', momentum: { requireRsiFilter: false, requireAdxFilter: false } },
-  
-  // Trail comparison
-  { id: 'D1', name: 'Trail_0.5', group: 'Trail', momentum: { trailingStopAtrMultiplier: 0.5, requireRsiFilter: false, requireAdxFilter: false } },
-  { id: 'D2', name: 'Trail_1.0', group: 'Trail', momentum: { trailingStopAtrMultiplier: 1.0, requireRsiFilter: false, requireAdxFilter: false } },
-  { id: 'D3', name: 'Trail_1.5', group: 'Trail', momentum: { trailingStopAtrMultiplier: 1.5, requireRsiFilter: false, requireAdxFilter: false } },
-  
-  // Mean Reversion
-  { id: 'F1', name: 'MR_Strict', group: 'Hybrid', type: 'meanReversion', meanReversion: { rsiOversold: 30, rsiOverbought: 70 } },
+// Variant matrix (10-15+ requested by user)
+const VARIANTS = [
+  // EMA family
+  { id: 'M1', name: 'Momentum_9_21', group: 'EMA', momentum: { emaFast: 9, emaSlow: 21 } },
+  { id: 'M2', name: 'Momentum_12_26', group: 'EMA', momentum: { emaFast: 12, emaSlow: 26 } },
+  { id: 'M3', name: 'Momentum_20_50', group: 'EMA', momentum: { emaFast: 20, emaSlow: 50 } },
+
+  // RSI family
+  { id: 'M4', name: 'RSI_50', group: 'RSI', momentum: { requireRsiFilter: true, rsiThreshold: 50 } },
+  { id: 'M5', name: 'RSI_45', group: 'RSI', momentum: { requireRsiFilter: true, rsiThreshold: 45 } },
+  { id: 'M6', name: 'RSI_OFF', group: 'RSI', momentum: { requireRsiFilter: false } },
+
+  // ADX family
+  { id: 'M7', name: 'ADX_15', group: 'ADX', momentum: { requireAdxFilter: true, adxThreshold: 15, requireRsiFilter: false, minConfidence: 0.5 } },
+  { id: 'M8', name: 'ADX_20', group: 'ADX', momentum: { requireAdxFilter: true, adxThreshold: 20, requireRsiFilter: false, minConfidence: 0.5 } },
+  { id: 'M9', name: 'ADX_25', group: 'ADX', momentum: { requireAdxFilter: true, adxThreshold: 25, requireRsiFilter: false, minConfidence: 0.5 } },
+
+  // ADX family (expanded / looser confidence block)
+  { id: 'M16', name: 'ADX_LOOSE_1', group: 'ADX2', momentum: { requireAdxFilter: true, adxThreshold: 1, requireRsiFilter: false, minConfidence: 0.38, minTrendAlignment: 0 } },
+  { id: 'M17', name: 'ADX_LOOSE_2', group: 'ADX2', momentum: { requireAdxFilter: true, adxThreshold: 2, requireRsiFilter: false, minConfidence: 0.38, minTrendAlignment: 0, emaFast: 7, emaSlow: 21 } },
+  { id: 'M18', name: 'ADX_LOOSE_3', group: 'ADX2', momentum: { requireAdxFilter: true, adxThreshold: 3, requireRsiFilter: false, minConfidence: 0.38, minTrendAlignment: 0, emaFast: 7, emaSlow: 21 } },
+
+  // Trail family
+  { id: 'M10', name: 'Trail_0.5', group: 'Trail', momentum: { trailingStopAtrMultiplier: 0.5, requireRsiFilter: false, minConfidence: 0.5 } },
+  { id: 'M11', name: 'Trail_1.0', group: 'Trail', momentum: { trailingStopAtrMultiplier: 1.0, requireRsiFilter: false, minConfidence: 0.5 } },
+  { id: 'M12', name: 'Trail_1.5', group: 'Trail', momentum: { trailingStopAtrMultiplier: 1.5, requireRsiFilter: false, minConfidence: 0.5 } },
+
+  // Position sizing
+  { id: 'M13', name: 'Pos_5pct', group: 'Risk', momentum: { basePositionSize: 0.05, requireRsiFilter: false, minConfidence: 0.5 } },
+  { id: 'M14', name: 'Pos_10pct', group: 'Risk', momentum: { basePositionSize: 0.10, requireRsiFilter: false, minConfidence: 0.5 } },
+
+  // Mean reversion baseline
+  { id: 'M15', name: 'MR_Strict', group: 'MeanRev', type: 'meanReversion', meanReversion: { rsiOversold: 30, rsiOverbought: 70 } },
 ];
 
-// Base configurations
 const BASE_MOMENTUM = {
   primaryTimeframe: '1h',
+  timeframes: ['15m', '1h'],
   emaFast: 9,
   emaSlow: 21,
-  minConfidence: 0.65,
+  minTrendAlignment: 1,
+  minConfidence: 0.6,
   requireRsiFilter: true,
   rsiThreshold: 50,
-  requireAdxFilter: true,
+  requireAdxFilter: false,
   adxThreshold: 20,
+  requireVolumeConfirmation: false,
   trailingStopAtrMultiplier: 1.0,
-  basePositionSize: 0.10
+  basePositionSize: 0.1,
 };
 
-const BASE_MEANREVERSION = {
+const BASE_MEANREV = {
   primaryTimeframe: '1h',
-  minConfidence: 0.60,
-  basePositionSize: 0.08
+  timeframes: ['15m', '1h'],
+  requireConfirmation: false,
+  minConfidence: 0.6,
+  basePositionSize: 0.08,
 };
+
+function parseArgs(argv) {
+  const out = {
+    pair: CONFIG.pair,
+    periods: Object.keys(ALL_PERIODS),
+    limit: VARIANTS.length,
+    variant: null,
+    maxCandles: null,
+    tailCandles: false,
+    resume: false,
+  };
+
+  for (const arg of argv.slice(2)) {
+    if (arg.startsWith('--pair=')) out.pair = arg.split('=')[1];
+    if (arg.startsWith('--periods=')) out.periods = arg.split('=')[1].split(',').filter(Boolean);
+    if (arg.startsWith('--limit=')) out.limit = Number(arg.split('=')[1]);
+    if (arg.startsWith('--variant=')) out.variant = arg.split('=')[1];
+    if (arg.startsWith('--max-candles=')) out.maxCandles = Number(arg.split('=')[1]);
+    if (arg === '--tail') out.tailCandles = true;
+    if (arg === '--resume') out.resume = true;
+  }
+
+  out.periods = out.periods.filter(p => ALL_PERIODS[p]);
+  if (out.periods.length === 0) out.periods = ['bull'];
+  if (!Number.isFinite(out.limit) || out.limit < 1) out.limit = VARIANTS.length;
+  out.limit = Math.min(out.limit, VARIANTS.length);
+  if (!Number.isFinite(out.maxCandles) || out.maxCandles <= 0) out.maxCandles = null;
+  return out;
+}
 
 async function loadCandles(pair, timeframe) {
-  try {
-    const filename = `${pair}_${timeframe}.json`;
-    const filepath = path.join(CONFIG.dataDir, filename);
-    const data = await fs.readFile(filepath, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    return null;
-  }
+  const filePath = path.join(CONFIG.dataDir, `${pair}_${timeframe}.json`);
+  const raw = await fs.readFile(filePath, 'utf8');
+  return JSON.parse(raw);
 }
 
-function filterByPeriod(candles, period) {
-  const start = new Date(PERIODS[period].start).getTime();
-  const end = new Date(PERIODS[period].end).getTime();
-  return candles.filter(c => c.timestamp >= start && c.timestamp <= end);
+function filterCandlesByPeriod(candles, periodKey) {
+  const startMs = new Date(ALL_PERIODS[periodKey].start).getTime();
+  const endMs = new Date(ALL_PERIODS[periodKey].end).getTime();
+  return candles.filter(c => c.timestamp >= startMs && c.timestamp <= endMs);
 }
 
-function detectTrend(timeframeData, currentTime) {
-  const trends = {};
-  for (const tf of ['4h', '1d']) {
-    const candles = timeframeData[tf];
-    if (!candles || candles.length < 50) continue;
-    const recent = candles.slice(-20);
-    const ema20 = recent.reduce((sum, c) => sum + c.close, 0) / recent.length;
-    const older = candles.slice(-50, -30);
-    const ema50 = older.length > 0 ? older.reduce((sum, c) => sum + c.close, 0) / older.length : ema20;
-    if (ema20 > ema50 * 1.05) trends[tf] = 'uptrend';
-    else if (ema20 < ema50 * 0.95) trends[tf] = 'downtrend';
-    else trends[tf] = 'ranging';
-  }
-  if (trends['4h'] === 'downtrend' && trends['1d'] === 'downtrend') return 'strong_downtrend';
-  if (trends['4h'] === 'downtrend' || trends['1d'] === 'downtrend') return 'downtrend';
-  return 'neutral';
-}
-
-async function runBacktest(candles, timeframeData, strategy) {
-  const paperTrading = new PaperTradingEngine({
-    initialBalance: CONFIG.initialBalance,
-    baseCurrency: 'USDT',
-    tradingPairs: ['BTC/USDT'],
-    maxLossPercent: 3.0
-  });
-  await paperTrading.initialize();
-
-  const strategies = [];
-  
-  if (strategy.type === 'meanReversion') {
-    strategies.push(new MeanReversionStrategyV2({ ...BASE_MEANREVERSION, ...strategy.meanReversion }));
-  } else {
-    strategies.push(new MomentumStrategyV2({ ...BASE_MOMENTUM, ...strategy.momentum }));
-  }
-
-  const aggregator = new SignalAggregator({
-    requireConsensus: false,
-    minConsensusCount: 1,
-    minCombinedConfidence: 0.5
-  });
-  strategies.forEach(s => aggregator.registerStrategy(s.name));
-
-  for (const candle of candles) {
-    candle.pair = 'BTC/USDT';
-    const signals = await paperTrading.processCandle(candle, strategies);
-    if (signals && signals.length > 0) {
-      // Disable regime filtering (Cash is King) for pure strategy comparison
-      const regime = 'neutral';
-      const aggregated = aggregator.aggregate(signals, { pair: 'BTC/USDT', price: candle.close, regime });
-      if (aggregated.action !== 'hold' && aggregated.confidence >= 0.5) {
-        try {
-          await paperTrading.executeTrade({ ...aggregated, timestamp: candle.timestamp });
-        } catch (e) {}
-      }
-    }
-  }
-
-  return paperTrading.getPerformance();
-}
-
-function calculateCompositeScore(result) {
-  // Composite: (Return × 1.0) + (Win% × 0.5) - (DD% × 2.0)
+function score(result) {
   return (result.totalReturn * 1.0) + (result.winRate * 0.5) - (result.maxDrawdown * 2.0);
 }
 
-async function main() {
-  logger.info('='.repeat(70));
-  logger.info('       COMPREHENSIVE STRATEGY TESTER - 20 VARIANTS × 4 PERIODS');
-  logger.info('='.repeat(70));
+function computeRiskProfile(row) {
+  const periods = Object.values(row.periods || {});
+  if (periods.length === 0) {
+    return { level: 'unknown', avgDrawdown: 0, totalTrades: 0 };
+  }
 
-  const pair = 'BTC_USDT';
-  const candles1h = await loadCandles(pair, '1h');
-  const candles4h = await loadCandles(pair, '4h');
-  const candles1d = await loadCandles(pair, '1d');
+  const totalTrades = periods.reduce((sum, p) => sum + (p.trades || 0), 0);
+  const avgDrawdown = periods.reduce((sum, p) => sum + (p.maxDrawdown || 0), 0) / periods.length;
 
-  if (!candles1h) {
-    logger.error('No data found!');
+  let level = 'low';
+  if (avgDrawdown >= 3 || totalTrades >= 30) level = 'high';
+  else if (avgDrawdown >= 1 || totalTrades >= 15) level = 'medium';
+
+  return {
+    level,
+    avgDrawdown,
+    totalTrades,
+  };
+}
+
+function summarizeVariant(row) {
+  if (!row) return null;
+  const periods = Object.values(row.periods || {});
+  const avgReturn = periods.length
+    ? periods.reduce((sum, p) => sum + (p.return || 0), 0) / periods.length
+    : 0;
+
+  return {
+    id: row.id,
+    name: row.name,
+    group: row.group,
+    avgScore: row.avgScore,
+    avgReturn,
+    riskProfile: computeRiskProfile(row),
+    periods: row.periods,
+  };
+}
+
+function syncStrategyPosition(strategy, trade) {
+  if (typeof strategy.recordTrade === 'function') {
+    strategy.recordTrade(trade);
     return;
   }
 
-  logger.info(`Total candles: ${candles1h.length}`);
-  logger.info(`Date range: ${candles1h[0].datetime} to ${candles1h[candles1h.length - 1].datetime}`);
-  logger.info(`Testing ${STRATEGIES.length} strategies on ${Object.keys(PERIODS).length} periods`);
-  logger.info('='.repeat(70));
+  if (trade.side === 'buy') {
+    strategy.position = {
+      amount: trade.amount,
+      entry: trade.price,
+      entryTime: trade.timestamp,
+      stopLoss: trade.stopLoss,
+      takeProfit: trade.takeProfit,
+      trailingStop: trade.trailingStop,
+      type: 'long',
+    };
+    if (typeof strategy.highestPrice === 'number') {
+      strategy.highestPrice = trade.price;
+    }
+  } else {
+    strategy.position = null;
+    if (typeof strategy.highestPrice === 'number') {
+      strategy.highestPrice = 0;
+    }
+  }
+}
 
-  const results = [];
+function getPositionAmount(paper, pair) {
+  const position = paper.positions.get(pair);
+  if (!position || typeof position.amount !== 'number') {
+    return 0;
+  }
+  return position.amount;
+}
 
-  // Test each strategy on each period
-  for (const strategy of STRATEGIES) {
-    logger.info(`\n>>> Testing ${strategy.name}...`);
-    
-    const strategyResults = { id: strategy.id, name: strategy.name, group: strategy.group, periods: {} };
-    
-    for (const [periodKey, period] of Object.entries(PERIODS)) {
-      const periodCandles = filterByPeriod(candles1h, periodKey);
-      
-      if (periodCandles.length < 100) {
-        logger.warn(`  Skipping ${period.name} - insufficient data`);
+function buildStrategy(variant) {
+  if (variant.type === 'meanReversion') {
+    return new MeanReversionStrategyV2({ ...BASE_MEANREV, ...variant.meanReversion });
+  }
+  return new MomentumStrategyV2({ ...BASE_MOMENTUM, ...variant.momentum });
+}
+
+async function diagnoseHoldReasons(candles, variant, maxSamples = 3000) {
+  const strategy = buildStrategy(variant);
+  const reasonCounts = new Map();
+  let processed = 0;
+
+  for (const candle of candles) {
+    if (processed >= maxSamples) break;
+    processed += 1;
+
+    const pair = 'BTC/USDT';
+    strategy.update(candle, pair);
+
+    try {
+      const signal = await strategy.generateSignal({
+        pair,
+        price: candle.close,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        volume: candle.volume,
+        timestamp: candle.timestamp,
+      });
+
+      if (signal && signal.action === 'hold') {
+        const reason = signal.reason || 'hold (no reason)';
+        reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
+      }
+    } catch (err) {
+      const reason = `error: ${err && err.message ? err.message : String(err)}`;
+      reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
+    }
+  }
+
+  return [...reasonCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([reason, count]) => ({ reason, count }));
+}
+
+async function runSingleBacktest(candles, variant) {
+  const paper = new PaperTradingEngine({
+    initialBalance: CONFIG.initialBalance,
+    baseCurrency: 'USDT',
+    tradingPairs: ['BTC/USDT'],
+    maxLossPercent: 3.0,
+    latencyMs: 0,
+    latencyVariance: 0,
+    suppressExecutionErrors: true,
+  });
+  await paper.initialize();
+
+  const strategy = buildStrategy(variant);
+  const aggregator = new SignalAggregator({
+    requireConsensus: false,
+    minConsensusCount: 1,
+    minCombinedConfidence: CONFIG.minCombinedConfidence,
+  });
+  aggregator.registerStrategy(strategy.name);
+
+  let nonHoldSignals = 0;
+  let executeAttempts = 0;
+  let executeFailures = 0;
+  let firstFailure = null;
+
+  for (const candle of candles) {
+    candle.pair = 'BTC/USDT';
+    const signals = await paper.processCandle(candle, [strategy]);
+    if (!signals || signals.length === 0) continue;
+    nonHoldSignals += signals.length;
+
+    // Neutral regime here to compare strategy logic directly.
+    const merged = aggregator.aggregate(signals, {
+      pair: candle.pair,
+      price: candle.close,
+      regime: 'neutral',
+    });
+
+    if (merged.action === 'hold' || merged.confidence < CONFIG.minCombinedConfidence) continue;
+
+    const currentPositionAmount = getPositionAmount(paper, candle.pair);
+    const isBuy = merged.action === 'buy' || merged.side === 'buy';
+    const isSell = merged.action === 'sell' || merged.side === 'sell';
+
+    if ((isBuy && currentPositionAmount > 0) || (isSell && currentPositionAmount <= 0)) {
+      continue;
+    }
+
+    executeAttempts += 1;
+    try {
+      const trade = await paper.executeTrade({ ...merged, timestamp: candle.timestamp });
+      syncStrategyPosition(strategy, trade);
+    } catch (_err) {
+      executeFailures += 1;
+      if (!firstFailure) firstFailure = _err && _err.message ? _err.message : String(_err);
+    }
+  }
+
+  const perf = paper.getPerformance();
+  return {
+    totalReturn: perf.totalReturn,
+    winRate: perf.winRate,
+    maxDrawdown: perf.maxDrawdown,
+    totalTrades: perf.totalTrades,
+    currentValue: perf.currentValue,
+    _debug: {
+      nonHoldSignals,
+      executeAttempts,
+      executeFailures,
+      firstFailure,
+    },
+  };
+}
+
+async function main() {
+  const args = parseArgs(process.argv);
+  let variants = VARIANTS;
+  if (args.variant) {
+    variants = VARIANTS.filter(v => v.id === args.variant || v.name === args.variant);
+  }
+  variants = variants.slice(0, args.limit);
+
+  logger.info(`Strategy tester starting: pair=${args.pair}, periods=${args.periods.join(',')}, variants=${variants.length}`);
+
+  const candles1h = await loadCandles(args.pair, '1h');
+  logger.info(`Loaded ${candles1h.length} 1h candles for ${args.pair}`);
+
+  let allResults = [];
+  if (args.resume) {
+    try {
+      const raw = await fs.readFile(CONFIG.progressFile, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.ranking)) {
+        allResults = parsed.ranking;
+      }
+    } catch (_err) {
+      // No progress file yet.
+    }
+  }
+
+  for (const variant of variants) {
+    const existing = allResults.find(r => r.id === variant.id);
+    const row = existing || { id: variant.id, name: variant.name, group: variant.group, periods: {}, avgScore: 0 };
+
+    const missingPeriods = args.periods.filter(p => !row.periods[p]);
+    if (missingPeriods.length === 0) continue;
+
+    logger.info(`Testing ${variant.id} ${variant.name}`);
+
+    for (const periodKey of missingPeriods) {
+      let subset = filterCandlesByPeriod(candles1h, periodKey);
+      if (args.maxCandles) {
+        subset = args.tailCandles ? subset.slice(-args.maxCandles) : subset.slice(0, args.maxCandles);
+      }
+      if (subset.length < 100) {
+        logger.warn(`Skipping ${variant.name} ${periodKey}: insufficient candles (${subset.length})`);
         continue;
       }
 
-      // Align higher timeframe candles
-      const timeframeData = {
-        '1h': periodCandles,
-        '4h': filterByPeriod(candles4h, periodKey),
-        '1d': filterByPeriod(candles1d, periodKey)
+      const perf = await runSingleBacktest(subset, variant);
+      const s = score(perf);
+      let topHoldReasons = [];
+
+      if (perf._debug.nonHoldSignals === 0) {
+        topHoldReasons = await diagnoseHoldReasons(subset, variant);
+      }
+
+      row.periods[periodKey] = {
+        return: perf.totalReturn,
+        winRate: perf.winRate,
+        maxDrawdown: perf.maxDrawdown,
+        trades: perf.totalTrades,
+        debug: perf._debug,
+        topHoldReasons,
+        score: s,
       };
 
-      const result = await runBacktest(periodCandles, timeframeData, strategy);
-      
-      strategyResults.periods[periodKey] = {
-        return: result.totalReturn,
-        winRate: result.winRate,
-        maxDrawdown: result.maxDrawdown,
-        trades: result.totalTrades,
-        score: calculateCompositeScore(result)
-      };
-
-      logger.info(`  ${period.name}: Return=${result.totalReturn.toFixed(1)}%, Win=${result.winRate.toFixed(0)}%, DD=${result.maxDrawdown.toFixed(1)}%, Trades=${result.totalTrades}`);
+      logger.info(`  ${periodKey}: ret=${perf.totalReturn.toFixed(2)} win=${perf.winRate.toFixed(1)} dd=${perf.maxDrawdown.toFixed(2)} trades=${perf.totalTrades}`);
     }
 
-    // Calculate average score across all periods
-    const scores = Object.values(strategyResults.periods).map(p => p.score);
-    strategyResults.avgScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
-    
-    results.push(strategyResults);
+    const periodScores = Object.values(row.periods).map(p => p.score);
+    row.avgScore = periodScores.length ? periodScores.reduce((a, b) => a + b, 0) / periodScores.length : -999;
+    if (!existing) allResults.push(row);
+
+    const progressPayload = {
+      generatedAt: new Date().toISOString(),
+      pair: args.pair,
+      periods: args.periods,
+      variantsTested: allResults.length,
+      ranking: [...allResults].sort((a, b) => b.avgScore - a.avgScore),
+    };
+    await fs.writeFile(CONFIG.progressFile, JSON.stringify(progressPayload, null, 2));
   }
 
-  // Rank by composite score
-  results.sort((a, b) => b.avgScore - a.avgScore);
+  allResults.sort((a, b) => b.avgScore - a.avgScore);
 
-  // Display results
-  logger.info('\n\n' + '='.repeat(70));
-  logger.info('                    FINAL RANKING (COMPOSITE SCORE)');
-  logger.info('='.repeat(70));
-  logger.info('Rank | Strategy       | Group   | Avg Score | Full Return | Bull Return | Bear Return');
-  logger.info('-----|---------------|---------|-----------|--------------|-------------|-------------');
-
-  results.forEach((r, i) => {
-    const full = r.periods.full?.return?.toFixed(1) || '-';
-    const bull = r.periods.bull?.return?.toFixed(1) || '-';
-    const bear = r.periods.bear?.return?.toFixed(1) || '-';
-    logger.info(`${(i + 1).toString().padStart(4)} | ${r.name.padEnd(14)} | ${r.group.padEnd(8)} | ${r.avgScore.toFixed(2).padStart(9)} | ${full.padStart(12)} | ${bull.padStart(11)} | ${bear.padStart(11)}`);
+  logger.info('--- Final Ranking ---');
+  allResults.forEach((r, i) => {
+    const p = args.periods[0];
+    const pp = r.periods[p];
+    const ret = pp ? pp.return.toFixed(2) : '-';
+    const win = pp ? pp.winRate.toFixed(1) : '-';
+    const dd = pp ? pp.maxDrawdown.toFixed(2) : '-';
+    logger.info(`${String(i + 1).padStart(2)}. ${r.name.padEnd(18)} score=${r.avgScore.toFixed(2).padStart(7)} ret=${ret}% win=${win}% dd=${dd}%`);
   });
 
-  // Group analysis
-  logger.info('\n' + '='.repeat(70));
-  logger.info('                    GROUP ANALYSIS');
-  logger.info('='.repeat(70));
-
-  const groups = {};
-  for (const r of results) {
-    if (!groups[r.group]) groups[r.group] = [];
-    groups[r.group].push(r);
-  }
-
-  for (const [group, strategies] of Object.entries(groups)) {
-    const avgScore = strategies.reduce((sum, s) => sum + s.avgScore, 0) / strategies.length;
-    const best = strategies.reduce((a, b) => a.avgScore > b.avgScore ? a : b);
-    logger.info(`${group.padEnd(10)}: Avg Score=${avgScore.toFixed(2)}, Best=${best.name} (${best.avgScore.toFixed(2)})`);
-  }
-
-  // Save detailed JSON report
   const report = {
-    testDate: new Date().toISOString(),
-    totalStrategies: STRATEGIES.length,
-    totalTests: results.length * 4,
-    results: results,
-    winner: results[0]
+    generatedAt: new Date().toISOString(),
+    pair: args.pair,
+    periods: args.periods,
+    variantsTested: variants.length,
+    winner: allResults[0] || null,
+    ranking: allResults,
   };
 
-  const reportFile = path.join(CONFIG.dataDir, `strategy-test-${Date.now()}.json`);
-  await fs.writeFile(reportFile, JSON.stringify(report, null, 2));
-  logger.info(`\nDetailed report saved: ${reportFile}`);
+  const reportTs = Date.now();
+  const outPath = path.join(CONFIG.dataDir, `strategy-test-${reportTs}.json`);
+  await fs.writeFile(outPath, JSON.stringify(report, null, 2));
+  logger.info(`Saved report: ${outPath}`);
 
-  logger.info('\n' + '='.repeat(70));
-  logger.info('                    RECOMMENDATION');
-  logger.info('='.repeat(70));
-  logger.info(`Best Overall Strategy: ${results[0].name}`);
-  logger.info(`Composite Score: ${results[0].avgScore.toFixed(2)}`);
-  logger.info('='.repeat(70));
+  const zeroTradeVariants = allResults
+    .filter(row => Object.values(row.periods || {}).every(p => (p.trades || 0) === 0))
+    .map(row => ({ id: row.id, name: row.name }));
+
+  const summary = {
+    generatedAt: report.generatedAt,
+    pair: report.pair,
+    periods: report.periods,
+    variantsTested: report.variantsTested,
+    champion: summarizeVariant(allResults[0]),
+    runnerUp: summarizeVariant(allResults[1]),
+    top5: allResults.slice(0, 5).map(summarizeVariant),
+    zeroTradeVariants,
+  };
+
+  const summaryPath = path.join(CONFIG.dataDir, `strategy-test-summary-${reportTs}.json`);
+  await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
+  logger.info(`Saved compact summary: ${summaryPath}`);
 }
 
-main().catch(e => {
-  logger.error('Strategy test failed:', e);
+main().catch(err => {
+  logger.error(`strategy-tester failed: ${err.message}`);
   process.exit(1);
 });

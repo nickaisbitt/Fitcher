@@ -206,14 +206,17 @@ class MultiTimeframeIndicatorState {
    * Check if all timeframes are warmed up
    */
   isWarmedUp() {
-    // Check if at least 3 out of 4 timeframes are warmed up
+    // Require most configured timeframes to be warmed.
+    // For full 4TF mode this is 3+, and for reduced modes (e.g. 15m+1h)
+    // this scales down so warmup can actually complete.
     let warmedUpCount = 0;
     for (const tf of this.timeframes) {
       if (this.states[tf].getSnapshot().warmedUp) {
         warmedUpCount++;
       }
     }
-    return warmedUpCount >= 3;
+    const required = Math.min(3, this.timeframes.length);
+    return warmedUpCount >= required;
   }
 
   /**

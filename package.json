@@ -9,7 +9,8 @@
     "test": "NODE_ENV=test vitest run",
     "test:watch": "NODE_ENV=test vitest",
     "backtest": "node scripts/runBacktest.js",
-    "backtest:matrix": "node scripts/runBacktestMatrix.js"
+    "backtest:matrix": "node scripts/runBacktestMatrix.js",
+    "strategy:test": "NODE_ENV=test node scripts/strategy-tester.js"
   },
   "keywords": [
     "crypto",

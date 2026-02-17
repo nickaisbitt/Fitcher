@@ -8,28 +8,28 @@ const { v4: uuidv4 } = require('uuid');
 class PaperTradingEngine {
   constructor(config = {}) {
     this.config = {
-      initialBalance: config.initialBalance || 100000, // $100k USD
+      initialBalance: config.initialBalance ?? 100000, // $100k USD
       baseCurrency: config.baseCurrency || 'USD',
       tradingPairs: config.tradingPairs || ['BTC/USD', 'ETH/USD'],
       
       // Simulation parameters
       slippageModel: config.slippageModel || 'variable', // 'fixed' | 'variable'
-      baseSlippage: config.baseSlippage || 0.001, // 0.1%
-      maxSlippage: config.maxSlippage || 0.005, // 0.5%
+      baseSlippage: config.baseSlippage ?? 0.001, // 0.1%
+      maxSlippage: config.maxSlippage ?? 0.005, // 0.5%
       
       // Fee simulation (Kraken-like)
-      makerFee: config.makerFee || 0.0016, // 0.16%
-      takerFee: config.takerFee || 0.0026, // 0.26%
+      makerFee: config.makerFee ?? 0.0016, // 0.16%
+      takerFee: config.takerFee ?? 0.0026, // 0.26%
       
       // Latency simulation
-      latencyMs: config.latencyMs || 500,
-      latencyVariance: config.latencyVariance || 0.5,
+      latencyMs: config.latencyMs ?? 500,
+      latencyVariance: config.latencyVariance ?? 0.5,
       
       // Partial fill simulation
-      partialFillProbability: config.partialFillProbability || 0.3,
+      partialFillProbability: config.partialFillProbability ?? 0.3,
       
       // Hard stop-loss (research: -3% hard stop prevents catastrophic losses)
-      maxLossPercent: config.maxLossPercent || 3.0, // 3% max loss per trade
+      maxLossPercent: config.maxLossPercent ?? 3.0, // 3% max loss per trade
       
       // Trailing stop enabled
       useTrailingStop: config.useTrailingStop !== false,
@@ -251,7 +251,9 @@ class PaperTradingEngine {
       return trade;
       
     } catch (error) {
-      logger.error('Paper trade execution failed:', error.message);
+      if (!this.config.suppressExecutionErrors) {
+        logger.error('Paper trade execution failed:', error.message);
+      }
       throw error;
     }
   }
@@ -373,10 +375,6 @@ class PaperTradingEngine {
       slippage: 0
     };
     
-    if (order.side === 'sell') {
-      console.log(`[FILLDEBUG] Sell trade: price=${price}, avgPrice=${position?.avgPrice}, pnl=${tradeRealizedPnl}`);
-    }
-    
     order.trades.push(trade);
     order.filled += fillAmount;
     order.remaining -= fillAmount;
@@ -429,6 +427,9 @@ class PaperTradingEngine {
    * Simulate network latency
    */
   async simulateLatency() {
+    if (!this.config.latencyMs || this.config.latencyMs <= 0) {
+      return;
+    }
     const variance = this.config.latencyVariance;
     const latency = this.config.latencyMs * (1 - variance + Math.random() * variance * 2);
     await new Promise(resolve => setTimeout(resolve, latency));
@@ -526,7 +527,6 @@ class PaperTradingEngine {
     const completedTrades = sellTrades.filter(t => t.amount > 0);
     
     const winningTrades = completedTrades.filter(t => t.realizedPnl > 0);
-    console.log(`[DEBUG] Total trades: ${this.trades.length}, Sell trades: ${sellTrades.length}, Completed: ${completedTrades.length}, Winning: ${winningTrades.length}`);
     
     const winRate = completedTrades.length > 0 
       ? (winningTrades.length / completedTrades.length) * 100 

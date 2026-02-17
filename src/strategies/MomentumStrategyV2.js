@@ -209,13 +209,17 @@ class MomentumStrategyV2 {
       let reason = combinedSignal.reason;
       
       // RSI Filter: Only buy if RSI aligned with trend (research shows this improves win rate)
-      const rsiAlignedForBuy = rsi > this.config.rsiThreshold;
-      const rsiAlignedForSell = rsi < this.config.rsiThreshold;
+      const rsiAlignedForBuy = !this.config.requireRsiFilter || rsi > this.config.rsiThreshold;
+      const rsiAlignedForSell = !this.config.requireRsiFilter || rsi < this.config.rsiThreshold;
       
       // ADX Filter: Only trade if trend is strong enough (filters choppy markets)
       const adxFilterPasses = !this.config.requireAdxFilter || trendStrength > this.config.adxThreshold;
       
       if (combinedSignal.bullish && alignment.score >= this.config.minTrendAlignment) {
+        if (this.position) {
+          action = 'hold';
+          reason = 'Already in position';
+        } else
         // Apply RSI and ADX filters
         if (!rsiAlignedForBuy) {
           action = 'hold';
