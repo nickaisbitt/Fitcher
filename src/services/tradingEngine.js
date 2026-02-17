@@ -1,13 +1,17 @@
 const EventEmitter = require('events');
 const logger = require('../utils/logger');
 const eventBus = require('../utils/eventBus');
+const SignalAggregator = require('./SignalAggregator');
+const SmartOrderRouter = require('./SmartOrderRouter');
+const DynamicRiskManager = require('./DynamicRiskManager');
+const MarketRegimeDetector = require('./MarketRegimeDetector');
 
 /**
  * TradingEngine - Central trading coordination system
  * Orchestrates strategies, rules, orders, and risk management
  */
 class TradingEngine extends EventEmitter {
-  constructor() {
+  constructor(options = {}) {
     super();
     this.strategyManager = null;
     this.ruleEngine = null;
@@ -15,23 +19,50 @@ class TradingEngine extends EventEmitter {
     this.riskManager = null;
     this.positionManager = null;
     this.marketDataAggregator = null;
+    
+    // V2 Components
+    this.signalAggregator = new SignalAggregator(options.aggregatorConfig || {});
+    this.orderRouter = new SmartOrderRouter(options.routerConfig || {});
+    this.regimeDetector = new MarketRegimeDetector(options.regimeConfig || {});
+    
     this.isRunning = false;
     this.eventSubscriptions = [];
+    this.pendingSignals = []; // Buffer signals for aggregation window
+    this.syncSignals = options.syncSignals || false; // For testing
   }
 
   /**
    * Initialize the trading engine with all components
-   * @param {Object} components - Trading system components
    */
   async initialize(components) {
-    logger.info('Initializing trading engine...');
+    logger.info('Initializing trading engine brain v2...');
     
     this.strategyManager = components.strategyManager;
     this.ruleEngine = components.ruleEngine;
     this.orderManager = components.orderManager;
-    this.riskManager = components.riskManager;
     this.positionManager = components.positionManager;
     this.marketDataAggregator = components.marketDataAggregator;
+    
+    // Initialize Risk Manager
+    // Use DynamicRiskManager if provided, otherwise create one
+    this.riskManager = components.riskManager || new DynamicRiskManager({
+      initialBalance: 100000,
+      profile: 'conservative'
+    });
+    
+    // Register strategies with aggregator
+    if (this.strategyManager && this.strategyManager.strategies && typeof this.strategyManager.strategies.values === 'function') {
+      try {
+        const strategies = Array.from(this.strategyManager.strategies.values());
+        for (const strategy of strategies) {
+          if (strategy && strategy.name) {
+            this.signalAggregator.registerStrategy(strategy.name);
+          }
+        }
+      } catch (err) {
+        logger.warn('Failed to register strategies with aggregator:', err.message);
+      }
+    }
     
     // Set up event-driven architecture
     this.setupEventHandlers();
@@ -47,12 +78,11 @@ class TradingEngine extends EventEmitter {
     
     this.isRunning = true;
     
-    logger.info('✅ Trading engine initialized');
+    logger.info('✅ Trading engine brain v2 initialized');
     
-    // Emit initialization event
     eventBus.publish('trading:initialized', {
       timestamp: Date.now(),
-      components: Object.keys(components).filter(k => components[k] !== null)
+      v2: true
     });
   }
 
@@ -113,80 +143,148 @@ class TradingEngine extends EventEmitter {
    */
   async handleStrategySignal(signal) {
     try {
+      // Publish raw signal for logging/audit
       eventBus.publish('trading:strategySignal', signal);
 
-      logger.info(`Processing strategy signal: ${signal.signal?.action}`, {
-        strategyId: signal.strategyId,
-        userId: signal.userId,
-        pair: signal.signal?.pair
-      });
+      // Buffer signals for aggregation
+      this.pendingSignals.push(signal);
       
-      // Check risk limits
-      if (this.riskManager) {
-        const portfolioSummary = await this.positionManager?.getPortfolioSummary(signal.userId) || {};
-        const positions = portfolioSummary.positions || [];
-        const totalExposure = positions.reduce((sum, p) => sum + (p.totalValue || 0), 0);
+      if (this.syncSignals) {
+        await this.processSignalBatch();
+      } else if (this.pendingSignals.length === 1) {
+        // If first signal in batch, set timer to aggregate
+        setTimeout(() => this.processSignalBatch(), 500);
+      }
+    } catch (error) {
+      logger.error('Error buffering strategy signal:', error);
+    }
+  }
 
-        if (portfolioSummary.totalValue == null) {
-          logger.warn(`Cannot determine portfolio value for user ${signal.userId}, blocking trade for safety`);
-          eventBus.publish('trading:signalBlocked', {
-            signal,
-            reason: ['Portfolio value unknown — cannot assess risk']
-          });
-          return;
-        }
+  /**
+   * Process a batch of buffered signals
+   */
+  async processSignalBatch() {
+    if (this.pendingSignals.length === 0) return;
+    
+    const signals = [...this.pendingSignals];
+    this.pendingSignals = [];
+    
+    try {
+      const firstSignal = signals[0];
+      const userId = firstSignal.userId;
+      const pair = firstSignal.signal?.pair;
+      
+      // 1. Aggregate signals (Consensus)
+      const rawSignals = signals.map(s => ({
+        ...s.signal,
+        strategy: s.strategyName || s.strategyId
+      }));
+      
+      const marketData = {
+        pair,
+        price: firstSignal.signal?.price,
+        volatility: await this.getMarketVolatility(pair)
+      };
 
-        const riskCheck = await this.riskManager.checkTrade(
-          signal.userId,
-          {
-            pair: signal.signal.pair,
-            side: signal.signal.action,
-            amount: signal.signal.amount,
-            price: signal.signal.price,
-            marketPrice: signal.signal.price
-          },
-          {
-            totalValue: portfolioSummary.totalValue,
-            positions,
-            totalExposure
-          }
-        );
-        
-        if (!riskCheck.allowed) {
-          logger.warn(`Strategy signal blocked by risk manager:`, riskCheck.failedChecks);
-          eventBus.publish('trading:signalBlocked', {
-            signal,
-            reason: riskCheck.failedChecks
-          });
-          return;
+      // 1a. Detect Market Regime and Adjust Weights
+      if (this.strategyManager) {
+        // Try to get snapshot from any active strategy
+        const strategy = await this.strategyManager.getStrategy(firstSignal.strategyId);
+        if (strategy?.indicatorStates?.get(pair)) {
+          const snapshot = strategy.indicatorStates.get(pair).getSnapshot();
+          const regime = this.regimeDetector.detect(snapshot);
+          const weights = this.regimeDetector.getWeights(regime);
+          
+          logger.info(`Market regime detected: ${regime}. Adjusting weights:`, weights);
+          this.signalAggregator.config.strategyWeights = weights;
+          
+          marketData.regime = snapshot.trendAlignment; // Pass trend info to aggregator
         }
       }
       
-      // Create order
+      const aggregated = this.signalAggregator.aggregate(rawSignals, marketData);
+      
+      if (aggregated.action === 'hold') {
+        logger.info(`Signal batch for ${pair} resulted in HOLD: ${aggregated.reason}`);
+        return;
+      }
+
+      // 2. Risk Check
+      const portfolioSummary = await this.positionManager?.getPortfolioSummary(userId) || {};
+      
+      // Safety check: block if portfolio value is unknown
+      if (portfolioSummary.totalValue == null && this.positionManager) {
+        logger.warn(`Cannot determine portfolio value for user ${userId}, blocking trade for safety`);
+        eventBus.publish('trading:signalBlocked', {
+          signal: aggregated,
+          reason: ['Portfolio value unknown — cannot assess risk']
+        });
+        return;
+      }
+
+      let riskCheck = { allowed: true };
+      if (this.riskManager) {
+        riskCheck = await this.riskManager.checkTrade(
+          aggregated,
+          portfolioSummary,
+          marketData
+        );
+      }
+      
+      if (!riskCheck.allowed) {
+        logger.warn(`Aggregated signal blocked by risk manager:`, riskCheck.reason);
+        eventBus.publish('trading:signalBlocked', {
+          signal: aggregated,
+          reason: riskCheck.reason
+        });
+        return;
+      }
+
+      // 3. Smart Order Routing
+      const routedOrder = await this.orderRouter.routeOrder(
+        riskCheck.adjustedParams || aggregated,
+        marketData
+      );
+
+      // 4. Order Execution
       if (this.orderManager) {
         const orderResult = await this.orderManager.createOrder({
-          userId: signal.userId,
-          exchange: signal.signal.exchange || 'kraken',
-          pair: signal.signal.pair,
-          type: signal.signal.orderType || 'market',
-          side: signal.signal.action,
-          amount: signal.signal.amount,
-          price: signal.signal.price,
-          strategyId: signal.strategyId
+          userId,
+          exchange: firstSignal.signal.exchange || 'kraken',
+          pair: routedOrder.symbol,
+          type: routedOrder.type,
+          side: routedOrder.side,
+          amount: routedOrder.amount,
+          price: routedOrder.price,
+          timeInForce: routedOrder.timeInForce,
+          strategyId: 'aggregated_v2'
         });
         
         if (orderResult.success) {
           eventBus.publish('trading:orderCreated', {
-            signal,
-            order: orderResult.data
+            signal: aggregated,
+            order: orderResult.data,
+            routing: routedOrder
           });
+          
+          // Record trade for strategy performance
+          this.signalAggregator.recordTradeResult(aggregated.id, { pnl: 0 }); // Will update on fill
         } else {
-          logger.error('Failed to create order from strategy signal:', orderResult.error);
+          logger.error('Failed to create order from aggregated signal:', orderResult.error);
         }
       }
     } catch (error) {
-      logger.error('Error handling strategy signal:', error);
+      logger.error('Error processing signal batch:', error);
     }
+  }
+
+  /**
+   * Helper to get market volatility
+   */
+  async getMarketVolatility(pair) {
+    if (!this.marketDataAggregator) return 0.02;
+    // Simple mock or call to aggregator if it had ATR
+    return 0.02;
   }
 
   /**
@@ -274,6 +372,23 @@ class TradingEngine extends EventEmitter {
             timestamp: new Date()
           });
           await this.strategyManager.persistStrategy(strategy);
+        }
+      }
+
+      // Update SignalAggregator performance
+      if (this.signalAggregator) {
+        // Find the recent aggregated signal for this order
+        const recentSignals = this.signalAggregator.getPerformance().recentSignals;
+        const matchingSignal = recentSignals.find(s => 
+          s.pair === order.pair && 
+          s.action === order.side && 
+          Math.abs(s.timestamp - Date.now()) < 3600000 // Last hour
+        );
+        
+        if (matchingSignal) {
+          this.signalAggregator.recordTradeResult(matchingSignal.id, {
+            pnl: order.realizedPnL || 0
+          });
         }
       }
       

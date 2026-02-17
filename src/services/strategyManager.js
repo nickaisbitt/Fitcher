@@ -50,6 +50,15 @@ class StrategyManager extends EventEmitter {
         timestamp: data.timestamp,
         exchange: data.exchange
       };
+    } else if (data.type === 'candle') {
+      // Update strategies that support incremental updates (V2)
+      for (const [strategyId, strategy] of this.strategies) {
+        if (strategy.status === 'active' && strategy.pair === data.pair) {
+          if (strategy.update) {
+            strategy.update(data, data.pair);
+          }
+        }
+      }
     }
   }
 

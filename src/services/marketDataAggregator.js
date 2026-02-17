@@ -130,6 +130,20 @@ class MarketDataAggregator extends EventEmitter {
           timestamp: timestamp || Date.now(),
           receivedAt: Date.now()
         };
+
+      case 'candle':
+        return {
+          type: 'candle',
+          exchange: exchangeName,
+          pair: this.normalizePair(pair),
+          open: parseFloat(rawData.open) || 0,
+          high: parseFloat(rawData.high) || 0,
+          low: parseFloat(rawData.low) || 0,
+          close: parseFloat(rawData.close) || 0,
+          volume: parseFloat(rawData.volume) || 0,
+          timestamp: rawData.timestamp || timestamp || Date.now(),
+          receivedAt: Date.now()
+        };
         
       default:
         return {

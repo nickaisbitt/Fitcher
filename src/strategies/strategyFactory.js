@@ -1,6 +1,6 @@
-const MeanReversionStrategy = require('./meanReversionStrategy');
-const MomentumStrategy = require('./momentumStrategy');
-const GridTradingStrategy = require('./gridTradingStrategy');
+const MeanReversionStrategy = require('./MeanReversionStrategyV2');
+const MomentumStrategy = require('./MomentumStrategyV2');
+const GridTradingStrategy = require('./GridTradingStrategyV2');
 const logger = require('../utils/logger');
 
 /**

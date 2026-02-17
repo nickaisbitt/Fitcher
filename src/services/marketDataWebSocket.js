@@ -161,6 +161,23 @@ class MarketDataWebSocket extends EventEmitter {
           timestamp: Date.now()
         };
       }
+
+      if (channelName === 'ohlc') {
+        return {
+          type: 'candle',
+          exchange: 'kraken',
+          pair: pair,
+          data: {
+            open: parseFloat(data[1]),
+            high: parseFloat(data[2]),
+            low: parseFloat(data[3]),
+            close: parseFloat(data[4]),
+            volume: parseFloat(data[6]),
+            timestamp: parseFloat(data[0]) * 1000 // kraken returns seconds
+          },
+          timestamp: Date.now()
+        };
+      }
     }
     
     return null;

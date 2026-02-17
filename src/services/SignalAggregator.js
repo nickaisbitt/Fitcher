@@ -167,7 +167,7 @@ class SignalAggregator {
 
     // Combine position sizes (weighted average)
     const weightedSize = weightedSignals.reduce(
-      (sum, s) => sum + (s.amount * s.weight), 0
+      (sum, s) => sum + ((s.amount || 0) * s.weight), 0
     ) / totalWeight;
 
     // Combine reasons

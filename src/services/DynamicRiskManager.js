@@ -1,11 +1,13 @@
+const EventEmitter = require('events');
 const logger = require('../utils/logger');
 
 /**
  * DynamicRiskManager - Advanced risk management with dynamic adjustments
  * Protects capital through graduated circuit breakers and adaptive position sizing
  */
-class DynamicRiskManager {
+class DynamicRiskManager extends EventEmitter {
   constructor(config = {}) {
+    super();
     this.config = {
       // Risk profiles
       profile: config.profile || 'conservative', // 'conservative' | 'moderate' | 'aggressive'

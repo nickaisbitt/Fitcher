@@ -17,7 +17,10 @@ describe('TradingEngine', () => {
 
   beforeEach(() => {
     eventBus.clear();
-    engine = new TradingEngine();
+    engine = new TradingEngine({ 
+      syncSignals: true,
+      aggregatorConfig: { requireConsensus: false, minConsensusCount: 1 }
+    });
   });
 
   afterEach(() => {
@@ -124,7 +127,7 @@ describe('TradingEngine', () => {
     const signal = {
       userId: 'u1',
       strategyId: 's1',
-      signal: { action: 'buy', pair: 'BTC/USD', amount: 0.1, price: 50000 }
+      signal: { action: 'buy', pair: 'BTC/USD', amount: 0.1, price: 50000, confidence: 0.8 }
     };
 
     it('publishes trading:strategySignal event', async () => {

@@ -33,17 +33,15 @@ class MomentumStrategyV2 {
       requireVolumeConfirmation: config.requireVolumeConfirmation !== false,
       volumeThreshold: config.volumeThreshold || 1.2, // 20% above average
       
-      // Risk parameters
-      stopLoss: config.stopLoss || 0.02,      // 2%
-      takeProfit: config.takeProfit || 0.04,  // 4% (1:2 ratio)
-      trailingStop: config.trailingStop || 0.03, // 3%
-      
-      // Position sizing
-      basePositionSize: config.basePositionSize || 0.10, // 10% of balance
-      maxPositionSize: config.maxPositionSize || 0.20,   // 20% max
-      
-      // Exit conditions
-      maxHoldTime: config.maxHoldTime || 24 * 60 * 60 * 1000, // 24 hours
+    // Exit conditions
+    maxHoldTime: config.maxHoldTime || 12 * 60 * 60 * 1000, // 12 hours
+    
+    // ATR-based risk
+    stopLossAtrMultiplier: config.stopLossAtrMultiplier || 2.0, // 2x ATR for hard stop
+    takeProfitAtrMultiplier: config.takeProfitAtrMultiplier || 4.0, // 4x ATR for 1:2 risk/reward
+    trailingStopAtrMultiplier: config.trailingStopAtrMultiplier || 1.5, // 1.5x ATR for trailing
+    
+    // Position sizing
       
       ...config
     };
@@ -57,6 +55,10 @@ class MomentumStrategyV2 {
     // Performance tracking
     this.signals = [];
     this.trades = [];
+    
+    // Position tracking (for standalone use and tests)
+    this.position = null;
+    this.highestPrice = 0;
   }
 
   /**
@@ -83,16 +85,26 @@ class MomentumStrategyV2 {
    */
   async generateSignal(marketData) {
     try {
-      const { pair, price, volume, timestamp } = marketData;
+      const { pair, price, volume, timestamp, indicators } = marketData;
       
       // Get or initialize indicator state
       const state = this.initializePair(pair);
       
-      // Get indicator snapshot across all timeframes
-      const snapshot = state.getSnapshot();
+      // Use provided indicators if available (for tests/legacy compatibility)
+      // Otherwise use internal state
+      let snapshot;
+      if (indicators && (indicators.ema12 || indicators.rsi || indicators.bb)) {
+        snapshot = {
+          [this.config.primaryTimeframe]: indicators,
+          overallWarmedUp: true,
+          trendAlignment: 'unknown'
+        };
+      } else {
+        snapshot = state.getSnapshot();
+      }
       
       // Check if warmed up
-      if (!snapshot.overallWarmedUp) {
+      if (!snapshot.overallWarmedUp && !indicators) {
         return {
           action: 'hold',
           confidence: 0,
@@ -101,15 +113,69 @@ class MomentumStrategyV2 {
         };
       }
 
-      // Analyze trend alignment
-      const alignment = this.analyzeTrendAlignment(snapshot);
-      
+      // Update highest price for trailing stop
+      if (this.position && price > this.highestPrice) {
+        this.highestPrice = price;
+        this.position.trailingStop = this.highestPrice * (1 - this.config.trailingStop);
+      }
+
       // Get primary timeframe indicators
       const primaryIndicators = snapshot[this.config.primaryTimeframe];
       
-      // Calculate signal components
+      // Calculate signal components (needed for both entry and exit)
       const emaSignal = this.calculateEMASignal(primaryIndicators);
       const macdSignal = this.calculateMACDSignal(primaryIndicators);
+
+      // Check for exit signals if holding position
+      if (this.position) {
+        // 1. Trailing stop hit
+        if (this.position.trailingStop && price <= this.position.trailingStop) {
+          return {
+            action: 'sell',
+            confidence: 0.95,
+            reason: `Trailing stop hit at ${price} (ATR based)`,
+            strategy: this.name,
+            pair, price, amount: this.position.amount
+          };
+        }
+
+        // 2. Stop loss hit (Hard stop)
+        if (this.position.stopLoss && price <= this.position.stopLoss) {
+          return {
+            action: 'sell',
+            confidence: 1.0,
+            reason: `Stop loss hit at ${price}`,
+            strategy: this.name,
+            pair, price, amount: this.position.amount
+          };
+        }
+
+        // 3. MACD bearish reversal (Trend Exhaustion)
+        if (macdSignal.bearish && this.config.requireMacdConfirmation) {
+          return {
+            action: 'sell',
+            confidence: 0.8,
+            reason: 'MACD bearish reversal',
+            strategy: this.name,
+            pair, price, amount: this.position.amount
+          };
+        }
+
+        // 4. Max hold time exit
+        if (Date.now() - this.position.entryTime > this.config.maxHoldTime) {
+          return {
+            action: 'sell',
+            confidence: 0.75,
+            reason: `Max hold time (${this.config.maxHoldTime/3600000}h) reached`,
+            strategy: this.name,
+            pair, price, amount: this.position.amount
+          };
+        }
+      }
+
+      // Analyze trend alignment
+      const alignment = this.analyzeTrendAlignment(snapshot);
+      
       const volumeSignal = this.calculateVolumeSignal(marketData, state);
       
       // Combine signals
@@ -129,8 +195,14 @@ class MomentumStrategyV2 {
         action = 'buy';
         confidence = Math.min(confidence * alignment.bullishScore, 0.95);
       } else if (combinedSignal.bearish && alignment.score <= -this.config.minTrendAlignment) {
-        action = 'sell';
-        confidence = Math.min(confidence * alignment.bearishScore, 0.95);
+        // Only sell if we have a position (spot-only)
+        if (this.position) {
+          action = 'sell';
+          confidence = Math.min(confidence * alignment.bearishScore, 0.95);
+        } else {
+          action = 'hold';
+          reason = `Bearish signal (${combinedSignal.reason}) but no position to sell`;
+        }
       }
       
       // Check if confidence meets threshold
@@ -140,7 +212,7 @@ class MomentumStrategyV2 {
       }
       
       // Calculate position size based on confidence and trend strength
-      const positionSize = this.calculatePositionSize(confidence, alignment);
+      const positionSize = this.calculatePositionSize(confidence, alignment) || 0;
       
       // Calculate dynamic stops based on ATR
       const atr = state.getATR(this.config.primaryTimeframe, 14);
@@ -450,6 +522,13 @@ class MomentumStrategyV2 {
       return 'market';
     }
     return 'limit';
+  }
+
+  /**
+   * Get current strategy configuration
+   */
+  getConfig() {
+    return { ...this.config };
   }
 
   /**

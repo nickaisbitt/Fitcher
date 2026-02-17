@@ -141,8 +141,11 @@ class PaperTradingEngine {
    */
   async executeTrade(signal) {
     try {
-      const { pair, side, amount, price, orderType = 'market' } = signal;
+      const { pair, amount, price, orderType = 'market' } = signal;
+      const side = signal.side || signal.action; // Support both side and action
       const currentPrice = this.currentPrices.get(pair);
+      
+      logger.debug(`Executing ${side} on ${pair}. Balance: ${JSON.stringify(this.balance)}`);
       
       if (!currentPrice) {
         throw new Error(`No price data for ${pair}`);
@@ -166,12 +169,14 @@ class PaperTradingEngine {
       
       if (side === 'buy') {
         const totalCost = orderValue + fee;
-        if (totalCost > (this.balance[quoteCurrency] || 0)) {
-          throw new Error(`Insufficient ${quoteCurrency} balance. Need: ${totalCost.toFixed(2)}, Have: ${(this.balance[quoteCurrency] || 0).toFixed(2)}`);
+        const currentBalance = this.balance[quoteCurrency] || 0;
+        
+        if (totalCost > currentBalance) {
+          throw new Error(`Insufficient ${quoteCurrency} balance. Need: ${totalCost.toFixed(2)}, Have: ${currentBalance.toFixed(2)}`);
         }
         
         // Update balance
-        this.balance[quoteCurrency] = (this.balance[quoteCurrency] || 0) - totalCost;
+        this.balance[quoteCurrency] = currentBalance - totalCost;
         
         // Update position
         const position = this.positions.get(pair) || { amount: 0, avgPrice: 0 };
@@ -182,8 +187,10 @@ class PaperTradingEngine {
         
       } else { // sell
         const position = this.positions.get(pair);
-        if (!position || position.amount < amount) {
-          throw new Error(`Insufficient ${baseCurrency} position. Need: ${amount}, Have: ${(position?.amount || 0).toFixed(8)}`);
+        const currentPositionAmount = position?.amount || 0;
+        
+        if (!position || currentPositionAmount < amount) {
+          throw new Error(`Insufficient ${baseCurrency} position. Need: ${amount}, Have: ${currentPositionAmount.toFixed(8)}`);
         }
         
         const proceeds = orderValue - fee;
@@ -301,8 +308,42 @@ class PaperTradingEngine {
   async fillOrder(order, price, amount = null) {
     const fillAmount = amount || order.remaining;
     const orderValue = fillAmount * price;
-    const fee = orderValue * this.config.takerFee;
+    const isMaker = order.type === 'limit';
+    const feeRate = isMaker ? this.config.makerFee : this.config.takerFee;
+    const fee = orderValue * feeRate;
     
+    const pair = order.pair;
+    const baseCurrency = pair.split('/')[0];
+    const quoteCurrency = pair.split('/')[1] || 'USDT';
+    
+    let tradeRealizedPnl = 0;
+
+    if (order.side === 'buy') {
+      const totalCost = orderValue + fee;
+      this.balance[quoteCurrency] = (this.balance[quoteCurrency] || 0) - totalCost;
+      
+      const position = this.positions.get(pair) || { amount: 0, avgPrice: 0 };
+      const newAmount = position.amount + fillAmount;
+      position.avgPrice = ((position.amount * position.avgPrice) + (fillAmount * price)) / newAmount;
+      position.amount = newAmount;
+      this.positions.set(pair, position);
+    } else {
+      const position = this.positions.get(pair);
+      if (position) {
+        const proceeds = orderValue - fee;
+        this.balance[quoteCurrency] = (this.balance[quoteCurrency] || 0) + proceeds;
+        
+        tradeRealizedPnl = (price - position.avgPrice) * fillAmount - fee;
+        position.realizedPnl = (position.realizedPnl || 0) + tradeRealizedPnl;
+        position.amount -= fillAmount;
+        if (position.amount <= 0.000001) {
+          position.amount = 0;
+          position.avgPrice = 0;
+        }
+        this.positions.set(pair, position);
+      }
+    }
+
     const trade = {
       id: `paper_${uuidv4()}`,
       orderId: order.id,
@@ -313,6 +354,8 @@ class PaperTradingEngine {
       price,
       orderValue,
       fee,
+      feeRate,
+      realizedPnl: order.side === 'sell' ? tradeRealizedPnl : 0,
       slippage: 0
     };
     
@@ -329,7 +372,7 @@ class PaperTradingEngine {
     this.trades.push(trade);
     this.orderHistory.push(order);
     
-    logger.info(`Paper order filled: ${order.side} ${fillAmount} ${order.pair} @ ${price.toFixed(2)}`);
+    logger.info(`Paper order filled: ${order.side} ${fillAmount} ${order.pair} @ ${price.toFixed(2)} (P&L: ${tradeRealizedPnl.toFixed(2)})`);
   }
 
   /**
@@ -432,12 +475,8 @@ class PaperTradingEngine {
     const totalReturn = ((currentValue - this.initialPortfolioValue) / this.initialPortfolioValue) * 100;
     
     // Calculate win rate
-    const completedTrades = this.trades.filter(t => !t.orderId); // Only count completed trades, not partial fills
-    const winningTrades = completedTrades.filter(t => {
-      if (t.side === 'buy') return false; // Don't count buys
-      const position = this.positions.get(t.pair);
-      return position && position.realizedPnl > 0;
-    });
+    const completedTrades = this.trades.filter(t => t.side === 'sell' && t.amount > 0); // Only count closed/sold trades
+    const winningTrades = completedTrades.filter(t => t.realizedPnl > 0);
     
     const winRate = completedTrades.length > 0 
       ? (winningTrades.length / completedTrades.length) * 100 
