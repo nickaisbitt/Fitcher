@@ -167,6 +167,8 @@ class PaperTradingEngine {
       const baseCurrency = pair.split('/')[0];
       const quoteCurrency = pair.split('/')[1] || 'USD';
       
+      let realizedPnl = 0;
+      
       if (side === 'buy') {
         const totalCost = orderValue + fee;
         const currentBalance = this.balance[quoteCurrency] || 0;
@@ -195,6 +197,10 @@ class PaperTradingEngine {
         
         const proceeds = orderValue - fee;
         
+        // Calculate realized PnL BEFORE updating position
+        const avgPriceAtSale = position.avgPrice;
+        realizedPnl = (fillPrice - avgPriceAtSale) * amount - fee;
+        
         // Update balance
         this.balance[quoteCurrency] = (this.balance[quoteCurrency] || 0) + proceeds;
         
@@ -204,14 +210,12 @@ class PaperTradingEngine {
           position.avgPrice = 0;
         }
         
-        // Calculate realized PnL
-        const realizedPnl = (fillPrice - position.avgPrice) * amount - fee;
         position.realizedPnl = (position.realizedPnl || 0) + realizedPnl;
         
         this.positions.set(pair, position);
       }
       
-      // Record trade
+      // Record trade (for both buy and sell)
       const trade = {
         id: `paper_${uuidv4()}`,
         timestamp: Date.now(),
@@ -222,6 +226,7 @@ class PaperTradingEngine {
         orderValue,
         fee,
         feeRate,
+        realizedPnl: side === 'sell' ? realizedPnl : 0,
         slippage: ((fillPrice - currentPrice) / currentPrice) * 100,
         balanceAfter: { ...this.balance },
         signal
@@ -359,6 +364,10 @@ class PaperTradingEngine {
       slippage: 0
     };
     
+    if (order.side === 'sell') {
+      console.log(`[FILLDEBUG] Sell trade: price=${price}, avgPrice=${position?.avgPrice}, pnl=${tradeRealizedPnl}`);
+    }
+    
     order.trades.push(trade);
     order.filled += fillAmount;
     order.remaining -= fillAmount;
@@ -475,8 +484,11 @@ class PaperTradingEngine {
     const totalReturn = ((currentValue - this.initialPortfolioValue) / this.initialPortfolioValue) * 100;
     
     // Calculate win rate
-    const completedTrades = this.trades.filter(t => t.side === 'sell' && t.amount > 0); // Only count closed/sold trades
+    const sellTrades = this.trades.filter(t => t.side === 'sell');
+    const completedTrades = sellTrades.filter(t => t.amount > 0);
+    
     const winningTrades = completedTrades.filter(t => t.realizedPnl > 0);
+    console.log(`[DEBUG] Total trades: ${this.trades.length}, Sell trades: ${sellTrades.length}, Completed: ${completedTrades.length}, Winning: ${winningTrades.length}`);
     
     const winRate = completedTrades.length > 0 
       ? (winningTrades.length / completedTrades.length) * 100 
