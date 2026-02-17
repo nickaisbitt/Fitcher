@@ -10,6 +10,7 @@ const path = require('path');
 const logger = require('../src/utils/logger');
 const PaperTradingEngine = require('../src/services/PaperTradingEngine');
 const SignalAggregator = require('../src/services/SignalAggregator');
+const MarketRegimeDetector = require('../src/services/MarketRegimeDetector');
 
 // Strategies
 const MomentumStrategyV2 = require('../src/strategies/MomentumStrategyV2');
@@ -21,6 +22,7 @@ const CONFIG = {
   pairs: ['BTC_USDT', 'ETH_USDT'], // File naming format
   timeframes: ['1h'], // Primary timeframe for signals
   initialBalance: 100000,
+  baseCurrency: 'USDT',
   
   // Test periods (use last 6 months for initial testing)
   testStartDays: 180, // 6 months
@@ -84,6 +86,7 @@ async function runBacktest(pair, candles) {
   // Initialize paper trading
   const paperTrading = new PaperTradingEngine({
     initialBalance: CONFIG.initialBalance,
+    baseCurrency: CONFIG.baseCurrency,
     tradingPairs: [pair.replace('_', '/')]
   });
   await paperTrading.initialize();
@@ -103,8 +106,9 @@ async function runBacktest(pair, candles) {
     logger.info('  Strategy: Mean Reversion v2');
   }
   
-  // Initialize signal aggregator
+  // Initialize signal aggregator and regime detector
   const aggregator = new SignalAggregator(CONFIG.aggregation);
+  const regimeDetector = new MarketRegimeDetector();
   strategies.forEach(s => aggregator.registerStrategy(s.name));
   
   // Process candles
@@ -115,25 +119,54 @@ async function runBacktest(pair, candles) {
   logger.info('\nProcessing candles...');
   
   for (const candle of candles) {
+    // Ensure pair is set on the candle for V2 strategies
+    const currentPair = pair.replace('_', '/');
+    candle.pair = currentPair;
+
     // Update paper trading
     const signals = await paperTrading.processCandle(candle, strategies);
     
     if (signals && signals.length > 0) {
       signalCount += signals.length;
       
+      // Get regime from strategy state (MomentumV2 tracks this)
+      let regime = 'neutral';
+      const momentumStrategy = strategies.find(s => s.name.includes('Momentum'));
+      if (momentumStrategy) {
+        const state = momentumStrategy.indicatorStates.get(currentPair);
+        if (state) {
+          const snapshot = state.getSnapshot();
+          regime = snapshot.trendAlignment?.direction || 'neutral';
+        }
+      }
+
       // Aggregate signals
       const aggregated = aggregator.aggregate(signals, {
-        pair: candle.pair || pair.replace('_', '/'),
-        price: candle.close
+        pair: currentPair,
+        price: candle.close,
+        regime: regime
       });
       
       // Execute if actionable
       if (aggregated.action !== 'hold' && aggregated.confidence >= CONFIG.aggregation.minCombinedConfidence) {
         try {
-          await paperTrading.executeTrade({
+          const trade = await paperTrading.executeTrade({
             ...aggregated,
             timestamp: candle.timestamp
           });
+          
+          // Update strategies with the trade result so they stay in sync
+          for (const strategy of strategies) {
+            if (typeof strategy.recordTrade === 'function') {
+              strategy.recordTrade(trade);
+            } else {
+              // Manual sync for V2 strategies if recordTrade isn't standard
+              strategy.position = trade.side === 'buy' ? 
+                { amount: trade.amount, price: trade.price, type: 'long' } : 
+                null;
+            }
+          }
+          
           tradeCount++;
         } catch (error) {
           logger.warn(`  Trade failed: ${error.message}`);

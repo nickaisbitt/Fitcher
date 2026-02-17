@@ -29,6 +29,10 @@ class GridTradingStrategyV2 {
       maxPositionSize: config.maxPositionSize || 0.5,   // 50% total for grid
       stopLossAtrMultiplier: config.stopLossAtrMultiplier || 5,
       
+      // Exit conditions
+      stopLossAtrMultiplier: config.stopLossAtrMultiplier || 5.0, // 5x ATR for hard stop
+      trailingStopAtrMultiplier: config.trailingStopAtrMultiplier || 1.5, // 1.5x ATR for trailing stop
+      
       ...config
     };
     
@@ -38,6 +42,7 @@ class GridTradingStrategyV2 {
     
     this.signals = [];
     this.trades = [];
+    this.position = null; // Track overall position for exit logic
   }
 
   initializePair(pair) {
@@ -80,6 +85,10 @@ class GridTradingStrategyV2 {
           }
         }
       }
+      
+      // Check for exits on current positions
+      const exitSignal = this.checkExitConditions(pair, price, state);
+      if (exitSignal) return exitSignal;
 
       // Initialize or update grid levels if needed
       if (!this.grids.has(pair) || this.shouldRebalance(pair, price, state)) {
@@ -89,7 +98,7 @@ class GridTradingStrategyV2 {
       const gridLevels = this.grids.get(pair);
       const activeLevels = this.activePositions.get(pair) || [];
       
-      // Check each grid level
+      // Check each grid level for BUY entry
       const signals = [];
       
       for (const level of gridLevels) {
@@ -108,37 +117,66 @@ class GridTradingStrategyV2 {
             gridLevel: level.price
           });
         }
-        
-        // Sell if price rises above a level we DO hold
-        if (isActive && price >= level.sellPrice && level.type === 'buy') {
-          signals.push({
-            action: 'sell',
-            confidence: 0.9,
-            reason: `Price ${price} hit sell target ${level.sellPrice} for grid level ${level.price}`,
-            strategy: this.name,
-            pair,
-            price: level.sellPrice,
-            amount: this.config.basePositionSize,
-            gridLevel: level.price
-          });
-        }
+      }
+      
+      // If we have an entry signal, record it
+      if (signals.length > 0) {
+        this.signals.push(...signals);
+        if (this.signals.length > 1000) this.signals.splice(0, signals.length);
+        return signals[0]; 
       }
 
-      if (signals.length === 0) {
-        return { action: 'hold', confidence: 0, reason: 'No grid levels hit', strategy: this.name };
-      }
-
-      // Record signals
-      this.signals.push(...signals);
-      if (this.signals.length > 1000) this.signals.splice(0, signals.length);
-
-      // In grid trading, we might return multiple signals, but aggregator expects one or we pick the best
-      return signals[0]; 
+      return { action: 'hold', confidence: 0, reason: 'No entry levels hit', strategy: this.name };
       
     } catch (error) {
       logger.error('GridTradingStrategyV2 error:', error);
       return { action: 'hold', confidence: 0, reason: 'Error', strategy: this.name };
     }
+  }
+
+  checkExitConditions(pair, price, state) {
+    const activeLevels = this.activePositions.get(pair) || [];
+    if (activeLevels.length === 0) return null;
+    
+    const atr = state.getATR(this.config.primaryTimeframe, 14);
+    
+    for (const level of activeLevels) {
+      // 1. Hard Stop Loss (based on ATR)
+      const stopLossPrice = level.price * (1 - this.config.stopLossAtrMultiplier * (atr / level.price));
+      if (price <= stopLossPrice) {
+        return {
+          action: 'sell',
+          confidence: 1.0,
+          reason: `Grid hard stop loss hit at ${price} for level ${level.price}`,
+          strategy: this.name,
+          pair, price, amount: this.config.basePositionSize // Sell one grid unit
+        };
+      }
+      
+      // 2. Trailing Stop (based on ATR)
+      const trailingStopPrice = level.sellPrice * (1 - this.config.trailingStopAtrMultiplier * (atr / level.sellPrice));
+      if (price <= trailingStopPrice) {
+        return {
+          action: 'sell',
+          confidence: 0.9,
+          reason: `Grid trailing stop hit at ${price} for level ${level.price}`,
+          strategy: this.name,
+          pair, price, amount: this.config.basePositionSize
+        };
+      }
+      
+      // 3. Profit Target (Sell Price)
+      if (price >= level.sellPrice) {
+        return {
+          action: 'sell',
+          confidence: 0.95,
+          reason: `Grid profit target hit at ${price} for level ${level.price}`,
+          strategy: this.name,
+          pair, price, amount: this.config.basePositionSize
+        };
+      }
+    }
+    return null;
   }
 
   shouldRebalance(pair, price, state) {
@@ -154,6 +192,16 @@ class GridTradingStrategyV2 {
       return true;
     }
     
+    // Rebalance if ATR changes significantly (e.g., 20% change in spacing)
+    const atr = state.getATR(this.config.primaryTimeframe, 14);
+    if (atr) {
+      const currentSpacing = grids[1]?.price - grids[0]?.price;
+      const newSpacing = atr * this.config.gridSpacingAtrMultiplier;
+      if (currentSpacing && Math.abs(newSpacing - currentSpacing) / currentSpacing > 0.2) {
+        return true;
+      }
+    }
+    
     return false;
   }
 
@@ -164,24 +212,21 @@ class GridTradingStrategyV2 {
     const levels = [];
     const numLevels = this.config.gridLevels;
     
-    // Create symmetric grid around current price
-    for (let i = -numLevels/2; i <= numLevels/2; i++) {
-      if (i === 0) continue;
-      
-      const levelPrice = price + (i * spacing);
+    // Center grid around current price, creating levels below
+    for (let i = 1; i <= numLevels; i++) {
+      const levelPrice = price - (i * spacing);
       levels.push({
         price: levelPrice,
         sellPrice: levelPrice + spacing,
-        type: i < 0 ? 'buy' : 'sell' // Simplified: only tracking buys with profit targets
+        type: 'buy'
       });
     }
     
+    // Sort levels from lowest (highest buy temptation) to highest (profit target)
+    levels.sort((a, b) => a.price - b.price);
+    
     this.grids.set(pair, levels);
-    logger.info(`Grid rebalanced for ${pair} around ${price.toFixed(2)} with spacing ${spacing.toFixed(2)}`);
-  }
-
-  getConfig() {
-    return { ...this.config };
+    logger.info(`Grid rebalanced for ${pair} around ${price.toFixed(2)} with spacing ${spacing.toFixed(2)}. Total levels: ${levels.length}`);
   }
 
   recordTrade(trade) {
@@ -190,7 +235,7 @@ class GridTradingStrategyV2 {
     let active = this.activePositions.get(pair) || [];
     
     if (trade.side === 'buy') {
-      active.push({ price: trade.gridLevel || trade.price, amount: trade.amount });
+      active.push({ price: trade.gridLevel || trade.price, amount: trade.amount, entryTime: Date.now() });
     } else {
       // Find and remove the nearest matching buy level
       const index = active.findIndex(l => Math.abs(l.price - (trade.gridLevel || trade.price)) / l.price < 0.01);
@@ -213,6 +258,9 @@ class GridTradingStrategyV2 {
     this.indicatorStates.clear();
     this.grids.clear();
     this.activePositions.clear();
+    this.signals = [];
+    this.trades = [];
+    logger.info('GridTradingStrategyV2 reset');
   }
 }
 

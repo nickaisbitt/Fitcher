@@ -87,58 +87,6 @@ class SignalAggregator {
       const hasBuyConsensus = buySignals.length >= this.config.minConsensusCount;
       const hasSellConsensus = sellSignals.length >= this.config.minConsensusCount;
 
-    // Check for conflicts (both buy and sell signals present)
-    const hasBuyConsensus = buySignals.length >= this.config.minConsensusCount;
-    const hasSellConsensus = sellSignals.length >= this.config.minConsensusCount;
-
-    // --- BEAR MARKET DEFENSE (CASH IS KING) ---
-    const alignment = marketData.regime || 'neutral';
-    const isBearMarket = alignment.includes('downtrend');
-    
-    if (buySignals.length > 0 && isBearMarket) {
-      logger.warn(`CASH IS KING MODE: Blocking ${buySignals.length} buy signals due to ${alignment} trend on 1D/4H.`);
-      // Only allow buys if confidence is extremely high OR trend is neutral/up
-      const highConfidenceBuys = buySignals.filter(s => s.confidence > 0.9);
-      
-      if (highConfidenceBuys.length === 0) {
-        return {
-          action: 'hold',
-          confidence: 0,
-          reason: `Bear market defense: ${alignment} trend detected. No high-confidence buys allowed.`,
-          sources: buySignals.map(s => s.strategy)
-        };
-      }
-      // If we proceed, we should only consider the high-confidence buys
-      buySignals = highConfidenceBuys;
-    }
-    // -------------------------------------------
-    
-      // --- BEAR MARKET DEFENSE (CASH IS KING) ---
-      const alignment = marketData.regime || 'neutral';
-      const isBearMarket = alignment.includes('downtrend');
-      
-      if (buySignals.length > 0 && isBearMarket) {
-        logger.warn(`CASH IS KING MODE: Blocking ${buySignals.length} buy signals due to ${alignment} trend on 1D/4H.`);
-        // Only allow buys if confidence is extremely high OR trend is neutral/up
-        const highConfidenceBuys = buySignals.filter(s => s.confidence > 0.9);
-        
-        if (highConfidenceBuys.length === 0) {
-          return {
-            action: 'hold',
-            confidence: 0,
-            reason: `Bear market defense: ${alignment} trend detected. No high-confidence buys allowed.`,
-            sources: buySignals.map(s => s.strategy)
-          };
-        }
-        // If we proceed, we should only consider the high-confidence buys
-        buySignals = highConfidenceBuys;
-      }
-      // -------------------------------------------
-      
-      // Check for conflicts (both buy and sell signals present)
-      const hasBuyConsensus = buySignals.length >= this.config.minConsensusCount;
-      const hasSellConsensus = sellSignals.length >= this.config.minConsensusCount;
-
       // --- BEAR MARKET DEFENSE (CASH IS KING) ---
       const alignment = marketData.regime || 'neutral';
       const isBearMarket = alignment.includes('downtrend');

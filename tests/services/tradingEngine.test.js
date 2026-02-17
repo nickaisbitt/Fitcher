@@ -19,8 +19,9 @@ describe('TradingEngine', () => {
     eventBus.clear();
     engine = new TradingEngine({ 
       syncSignals: true,
-      aggregatorConfig: { requireConsensus: false, minConsensusCount: 1 }
+      aggregatorConfig: { requireConsensus: false, minConsensusCount: 1 } // Allow single signal for reliable testing
     });
+  });
   });
 
   afterEach(() => {

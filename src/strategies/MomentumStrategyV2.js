@@ -93,7 +93,6 @@ class MomentumStrategyV2 {
       const state = this.initializePair(pair);
       
       // Use provided indicators if available (for tests/legacy compatibility)
-      // Otherwise use internal state
       let snapshot;
       if (indicators && (indicators.ema12 || indicators.rsi || indicators.bb)) {
         snapshot = {
@@ -116,61 +115,18 @@ class MomentumStrategyV2 {
       }
 
       // Update highest price for trailing stop
+      const atr = state.getATR(this.config.primaryTimeframe, 14);
       if (this.position && price > this.highestPrice) {
         this.highestPrice = price;
-        this.position.trailingStop = this.highestPrice * (1 - this.config.trailingStopAtrMultiplier * (atr / price));
+        // Dynamic ATR trailing stop
+        const trailingDist = atr ? atr * this.config.trailingStopAtrMultiplier : price * 0.03;
+        this.position.trailingStop = this.highestPrice - trailingDist;
       }
-
-      // Check for exit signals if holding position
-      if (this.position) {
-        // 1. Trailing stop hit
-        if (this.position.trailingStop && price <= this.position.trailingStop) {
-          return {
-            action: 'sell',
-            confidence: 0.95,
-            reason: `Trailing stop hit at ${price} (ATR based)`,
-            strategy: this.name,
-            pair, price, amount: this.position.amount
-          };
-        }
-
-        // 2. Stop loss hit (Hard stop)
-        if (this.position.stopLoss && price <= this.position.stopLoss) {
-          return {
-            action: 'sell',
-            confidence: 1.0,
-            reason: `Stop loss hit at ${price}`,
-            strategy: this.name,
-            pair, price, amount: this.position.amount
-          };
-        }
-
-        // 3. MACD bearish reversal (Trend Exhaustion)
-        if (macdSignal.bearish && this.config.requireMacdConfirmation) {
-          return {
-            action: 'sell',
-            confidence: 0.8,
-            reason: 'MACD bearish reversal',
-            strategy: this.name,
-            pair, price, amount: this.position.amount
-          };
-        }
-
-        // 4. Max hold time exit
-        if (Date.now() - this.position.entryTime > this.config.maxHoldTime) {
-          return {
-            action: 'sell',
-            confidence: 0.75,
-            reason: `Max hold time (${this.config.maxHoldTime/3600000}h) reached`,
-            strategy: this.name,
-            pair, price, amount: this.position.amount
-          };
-        }
 
       // Get primary timeframe indicators
       const primaryIndicators = snapshot[this.config.primaryTimeframe];
       
-      // Calculate signal components (needed for both entry and exit)
+      // Calculate signal components
       const emaSignal = this.calculateEMASignal(primaryIndicators);
       const macdSignal = this.calculateMACDSignal(primaryIndicators);
 
@@ -210,11 +166,11 @@ class MomentumStrategyV2 {
         }
 
         // 4. Max hold time exit
-        if (Date.now() - this.position.entryTime > this.config.maxHoldTime) {
+        if (this.position.entryTime && Date.now() - this.position.entryTime > this.config.maxHoldTime) {
           return {
             action: 'sell',
             confidence: 0.75,
-            reason: `Max hold time (${this.config.maxHoldTime/3600000}h) reached`,
+            reason: `Max hold time reached`,
             strategy: this.name,
             pair, price, amount: this.position.amount
           };
@@ -223,7 +179,6 @@ class MomentumStrategyV2 {
 
       // Analyze trend alignment
       const alignment = this.analyzeTrendAlignment(snapshot);
-      
       const volumeSignal = this.calculateVolumeSignal(marketData, state);
       
       // Combine signals
@@ -263,7 +218,6 @@ class MomentumStrategyV2 {
       const positionSize = this.calculatePositionSize(confidence, alignment) || 0;
       
       // Calculate dynamic stops based on ATR
-      const atr = state.getATR(this.config.primaryTimeframe, 14);
       const stops = this.calculateDynamicStops(price, atr);
       
       // Build signal
@@ -562,16 +516,6 @@ class MomentumStrategyV2 {
       stopLoss: price - stopDistance,
       takeProfit: price + profitDistance,
       trailingStop: price * (1 - trailingDistance / price) // Convert distance to percentage reduction from current price
-    };
-  }
-    
-    const stopDistance = atr * 2;
-    const profitDistance = atr * 4;
-    
-    return {
-      stopLoss: price - stopDistance,
-      takeProfit: price + profitDistance,
-      trailingStop: atr * 1.5
     };
   }
 

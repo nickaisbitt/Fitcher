@@ -106,24 +106,6 @@ class MeanReversionStrategyV2 {
           return { action: 'sell', confidence: 0.75, reason: 'RSI exhaustion/overbought', strategy: this.name, pair, price };
         }
       }
-      // Take profit (back to mean)
-      if (price >= primary.bb?.middle) {
-        return { action: 'sell', confidence: 0.9, reason: 'Reached mean (take profit)', strategy: this.name, pair, price };
-      }
-      // Trend Exhaustion: RSI crosses 50 from extreme, or overbought
-      if (primary.rsi > this.config.rsiOverbought || (primary.rsi > 50 && primary.rsi < 70)) {
-        return { action: 'sell', confidence: 0.75, reason: 'RSI exhaustion/overbought', strategy: this.name, pair, price };
-      }
-    }
-      // Take profit (back to mean)
-      if (price >= primary.bb?.middle) {
-        return { action: 'sell', confidence: 0.9, reason: 'Reached mean (take profit)', strategy: this.name, pair, price };
-      }
-      // Trend Exhaustion: RSI crosses 50 from extreme, or overbought
-      if (primary.rsi > this.config.rsiOverbought || (primary.rsi > 50 && primary.rsi < 70)) {
-        return { action: 'sell', confidence: 0.75, reason: 'RSI exhaustion/overbought', strategy: this.name, pair, price };
-      }
-    }
 
       // Check volatility filter
       const volatility = state.getATR(this.config.primaryTimeframe, 14);
@@ -172,11 +154,10 @@ class MeanReversionStrategyV2 {
         reason = `Overbought signal (${analysis.reason}) but no position to sell`;
       }
     }
-      }
 
-      if (confidence < 0.6) {
-        action = 'hold';
-      }
+    if (confidence < 0.6) {
+      action = 'hold';
+    }
 
       const signal = {
         action,
