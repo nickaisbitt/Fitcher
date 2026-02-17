@@ -87,12 +87,34 @@ class MeanReversionStrategyV2 {
 
       const primary = snapshot[this.config.primaryTimeframe];
       
-    // Check for exit signals if holding position
-    if (this.position) {
-      // Stop loss
-      if (this.position.stopLoss && price <= this.position.stopLoss) {
-        return { action: 'sell', confidence: 1.0, reason: 'Stop loss hit', strategy: this.name, pair, price };
+      const atr = state.getATR(this.config.primaryTimeframe, 14);
+      
+      // Check for exit signals if holding position
+      if (this.position) {
+        // Stop loss
+        if (this.position.stopLoss && price <= this.position.stopLoss) {
+          return { action: 'sell', confidence: 1.0, reason: 'Stop loss hit', strategy: this.name, pair, price };
+        }
+        
+        // Take profit (back to mean)
+        if (price >= primary.bb?.middle) {
+          return { action: 'sell', confidence: 0.9, reason: 'Reached mean (take profit)', strategy: this.name, pair, price };
+        }
+        
+        // Trend Exhaustion: RSI crosses 50 from extreme, or overbought
+        if (primary.rsi > this.config.rsiOverbought || (primary.rsi > 50 && primary.rsi < 70)) {
+          return { action: 'sell', confidence: 0.75, reason: 'RSI exhaustion/overbought', strategy: this.name, pair, price };
+        }
       }
+      // Take profit (back to mean)
+      if (price >= primary.bb?.middle) {
+        return { action: 'sell', confidence: 0.9, reason: 'Reached mean (take profit)', strategy: this.name, pair, price };
+      }
+      // Trend Exhaustion: RSI crosses 50 from extreme, or overbought
+      if (primary.rsi > this.config.rsiOverbought || (primary.rsi > 50 && primary.rsi < 70)) {
+        return { action: 'sell', confidence: 0.75, reason: 'RSI exhaustion/overbought', strategy: this.name, pair, price };
+      }
+    }
       // Take profit (back to mean)
       if (price >= primary.bb?.middle) {
         return { action: 'sell', confidence: 0.9, reason: 'Reached mean (take profit)', strategy: this.name, pair, price };
@@ -140,15 +162,16 @@ class MeanReversionStrategyV2 {
         }
       }
       
-      // Sell: Price above upper band + RSI overbought (if holding position)
-      if (analysis.overbought && analysis.aboveBand) {
-        if (this.position) {
-          action = 'sell';
-          reason = `Overbought signal (${analysis.reason})`;
-        } else {
-          action = 'hold';
-          reason = `Overbought signal (${analysis.reason}) but no position to sell`;
-        }
+    // Sell: Price above upper band + RSI overbought (if holding position)
+    if (analysis.overbought && analysis.aboveBand) {
+      if (this.position) {
+        action = 'sell';
+        reason = `Overbought signal (${analysis.reason})`;
+      } else {
+        action = 'hold';
+        reason = `Overbought signal (${analysis.reason}) but no position to sell`;
+      }
+    }
       }
 
       if (confidence < 0.6) {

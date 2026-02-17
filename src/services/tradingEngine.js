@@ -187,19 +187,21 @@ class TradingEngine extends EventEmitter {
       };
 
       // 1a. Detect Market Regime and Adjust Weights
+      let snapshot = null;
       if (this.strategyManager) {
-        // Try to get snapshot from any active strategy
         const strategy = await this.strategyManager.getStrategy(firstSignal.strategyId);
         if (strategy?.indicatorStates?.get(pair)) {
-          const snapshot = strategy.indicatorStates.get(pair).getSnapshot();
+          snapshot = strategy.indicatorStates.get(pair).getSnapshot();
           const regime = this.regimeDetector.detect(snapshot);
           const weights = this.regimeDetector.getWeights(regime);
           
           logger.info(`Market regime detected: ${regime}. Adjusting weights:`, weights);
           this.signalAggregator.config.strategyWeights = weights;
-          
-          marketData.regime = snapshot.trendAlignment; // Pass trend info to aggregator
         }
+      }
+      
+      if (snapshot) {
+        marketData.regime = snapshot.trendAlignment; // Pass trend info to aggregator
       }
       
       const aggregated = this.signalAggregator.aggregate(rawSignals, marketData);

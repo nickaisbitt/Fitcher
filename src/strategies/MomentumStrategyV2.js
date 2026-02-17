@@ -33,15 +33,17 @@ class MomentumStrategyV2 {
       requireVolumeConfirmation: config.requireVolumeConfirmation !== false,
       volumeThreshold: config.volumeThreshold || 1.2, // 20% above average
       
-    // Exit conditions
-    maxHoldTime: config.maxHoldTime || 12 * 60 * 60 * 1000, // 12 hours
-    
-    // ATR-based risk
-    stopLossAtrMultiplier: config.stopLossAtrMultiplier || 2.0, // 2x ATR for hard stop
-    takeProfitAtrMultiplier: config.takeProfitAtrMultiplier || 4.0, // 4x ATR for 1:2 risk/reward
-    trailingStopAtrMultiplier: config.trailingStopAtrMultiplier || 1.5, // 1.5x ATR for trailing
-    
-    // Position sizing
+      // ATR-based risk
+      stopLossAtrMultiplier: config.stopLossAtrMultiplier || 2.0, // 2x ATR for hard stop
+      takeProfitAtrMultiplier: config.takeProfitAtrMultiplier || 4.0, // 4x ATR for 1:2 risk/reward
+      trailingStopAtrMultiplier: config.trailingStopAtrMultiplier || 1.5, // 1.5x ATR for trailing
+      
+      // Position sizing
+      basePositionSize: config.basePositionSize || 0.10, // 10% of balance
+      maxPositionSize: config.maxPositionSize || 0.20,   // 20% max
+      
+      // Exit conditions
+      maxHoldTime: config.maxHoldTime || 12 * 60 * 60 * 1000, // 12 hours
       
       ...config
     };
@@ -116,8 +118,54 @@ class MomentumStrategyV2 {
       // Update highest price for trailing stop
       if (this.position && price > this.highestPrice) {
         this.highestPrice = price;
-        this.position.trailingStop = this.highestPrice * (1 - this.config.trailingStop);
+        this.position.trailingStop = this.highestPrice * (1 - this.config.trailingStopAtrMultiplier * (atr / price));
       }
+
+      // Check for exit signals if holding position
+      if (this.position) {
+        // 1. Trailing stop hit
+        if (this.position.trailingStop && price <= this.position.trailingStop) {
+          return {
+            action: 'sell',
+            confidence: 0.95,
+            reason: `Trailing stop hit at ${price} (ATR based)`,
+            strategy: this.name,
+            pair, price, amount: this.position.amount
+          };
+        }
+
+        // 2. Stop loss hit (Hard stop)
+        if (this.position.stopLoss && price <= this.position.stopLoss) {
+          return {
+            action: 'sell',
+            confidence: 1.0,
+            reason: `Stop loss hit at ${price}`,
+            strategy: this.name,
+            pair, price, amount: this.position.amount
+          };
+        }
+
+        // 3. MACD bearish reversal (Trend Exhaustion)
+        if (macdSignal.bearish && this.config.requireMacdConfirmation) {
+          return {
+            action: 'sell',
+            confidence: 0.8,
+            reason: 'MACD bearish reversal',
+            strategy: this.name,
+            pair, price, amount: this.position.amount
+          };
+        }
+
+        // 4. Max hold time exit
+        if (Date.now() - this.position.entryTime > this.config.maxHoldTime) {
+          return {
+            action: 'sell',
+            confidence: 0.75,
+            reason: `Max hold time (${this.config.maxHoldTime/3600000}h) reached`,
+            strategy: this.name,
+            pair, price, amount: this.position.amount
+          };
+        }
 
       // Get primary timeframe indicators
       const primaryIndicators = snapshot[this.config.primaryTimeframe];
@@ -497,12 +545,25 @@ class MomentumStrategyV2 {
    */
   calculateDynamicStops(price, atr) {
     if (!atr || atr === 0) {
+      // Fallback to percentage-based
       return {
         stopLoss: price * (1 - this.config.stopLoss),
         takeProfit: price * (1 + this.config.takeProfit),
-        trailingStop: this.config.trailingStop
+        trailingStop: price * (1 - this.config.trailingStop) // Trailing stop is a % reduction
       };
     }
+    
+    // ATR-based stops
+    const stopDistance = atr * this.config.stopLossAtrMultiplier;
+    const profitDistance = atr * this.config.takeProfitAtrMultiplier;
+    const trailingDistance = atr * this.config.trailingStopAtrMultiplier;
+    
+    return {
+      stopLoss: price - stopDistance,
+      takeProfit: price + profitDistance,
+      trailingStop: price * (1 - trailingDistance / price) // Convert distance to percentage reduction from current price
+    };
+  }
     
     const stopDistance = atr * 2;
     const profitDistance = atr * 4;
