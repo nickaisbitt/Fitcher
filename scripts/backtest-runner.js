@@ -20,7 +20,7 @@ const MeanReversionStrategyV2 = require('../src/strategies/MeanReversionStrategy
 const CONFIG = {
   dataDir: path.join(__dirname, '..', 'data', 'historical'),
   pairs: ['BTC_USDT', 'ETH_USDT'], // File naming format
-  timeframes: ['1h'], // Primary timeframe for signals
+  timeframes: ['1h', '4h', '1d'], // Need multiple timeframes for Cash is King
   initialBalance: 100000,
   baseCurrency: 'USDT',
   
@@ -76,12 +76,53 @@ async function loadCandles(pair, timeframe) {
 }
 
 /**
+ * Detect long-term trend from higher timeframes
+ * Returns: 'strong_downtrend' | 'downtrend' | 'ranging' | 'uptrend' | 'strong_uptrend'
+ */
+function detectLongTermTrend(timeframeData, currentTime) {
+  const trends = {};
+  
+  for (const tf of ['4h', '1d']) {
+    const candles = timeframeData[tf];
+    if (!candles || candles.length < 50) continue;
+    
+    // Get recent candles (last 20)
+    const recent = candles.slice(-20);
+    const ema20 = recent.reduce((sum, c) => sum + c.close, 0) / recent.length;
+    const older = candles.slice(-50, -30);
+    const ema50 = older.length > 0 ? older.reduce((sum, c) => sum + c.close, 0) / older.length : ema20;
+    
+    // Simple trend detection
+    if (ema20 > ema50 * 1.05) trends[tf] = 'uptrend';
+    else if (ema20 < ema50 * 0.95) trends[tf] = 'downtrend';
+    else trends[tf] = 'ranging';
+  }
+  
+  // If both 4h and 1d agree on downtrend, it's a bear market
+  if (trends['4h'] === 'downtrend' && trends['1d'] === 'downtrend') {
+    return 'strong_downtrend';
+  }
+  if (trends['4h'] === 'downtrend' || trends['1d'] === 'downtrend') {
+    return 'downtrend';
+  }
+  if (trends['4h'] === 'uptrend' && trends['1d'] === 'uptrend') {
+    return 'strong_uptrend';
+  }
+  if (trends['4h'] === 'uptrend' || trends['1d'] === 'uptrend') {
+    return 'uptrend';
+  }
+  
+  return 'ranging';
+}
+
+/**
  * Run backtest for a single pair
  */
-async function runBacktest(pair, candles) {
+async function runBacktest(pair, candles, timeframeData = {}) {
   logger.info(`\n=== Backtesting ${pair} ===`);
   logger.info(`Candles: ${candles.length}`);
   logger.info(`Period: ${candles[0].datetime} to ${candles[candles.length - 1].datetime}`);
+  logger.info(`Timeframes: ${Object.keys(timeframeData).join(', ')}`);
   
   // Initialize paper trading
   const paperTrading = new PaperTradingEngine({
@@ -129,16 +170,8 @@ async function runBacktest(pair, candles) {
     if (signals && signals.length > 0) {
       signalCount += signals.length;
       
-      // Get regime from strategy state (MomentumV2 tracks this)
-      let regime = 'neutral';
-      const momentumStrategy = strategies.find(s => s.name.includes('Momentum'));
-      if (momentumStrategy) {
-        const state = momentumStrategy.indicatorStates.get(currentPair);
-        if (state) {
-          const snapshot = state.getSnapshot();
-          regime = snapshot.trendAlignment?.direction || 'neutral';
-        }
-      }
+      // Get long-term regime from higher timeframes (Cash is King)
+      const regime = detectLongTermTrend(timeframeData, candle.timestamp);
 
       // Aggregate signals
       const aggregated = aggregator.aggregate(signals, {
@@ -263,14 +296,30 @@ async function main() {
   
   // Run backtests for each pair
   for (const pair of CONFIG.pairs) {
-    const candles = await loadCandles(pair, CONFIG.timeframes[0]);
-    if (!candles) continue;
+    // Load all timeframes
+    const timeframeData = {};
+    for (const tf of CONFIG.timeframes) {
+      timeframeData[tf] = await loadCandles(pair, tf);
+    }
     
     // Use only last N days for initial testing
-    const startIndex = Math.max(0, candles.length - (CONFIG.testStartDays * 24));
-    const testCandles = candles.slice(startIndex);
+    const primaryCandles = timeframeData[CONFIG.timeframes[0]];
+    if (!primaryCandles) continue;
     
-    const result = await runBacktest(pair, testCandles);
+    const startIndex = Math.max(0, primaryCandles.length - (CONFIG.testStartDays * 24));
+    const testCandles = primaryCandles.slice(startIndex);
+    
+    // Also filter higher timeframe candles to align with primary
+    for (const tf of CONFIG.timeframes) {
+      if (timeframeData[tf] && timeframeData[tf].length > 0) {
+        // Find the first candle that matches or is before our test start
+        const startTime = testCandles[0]?.timestamp || 0;
+        const tfStartIdx = timeframeData[tf].findIndex(c => c.timestamp >= startTime);
+        timeframeData[tf] = timeframeData[tf].slice(Math.max(0, tfStartIdx - 100)); // Extra buffer
+      }
+    }
+    
+    const result = await runBacktest(pair, testCandles, timeframeData);
     results.push(result);
   }
   

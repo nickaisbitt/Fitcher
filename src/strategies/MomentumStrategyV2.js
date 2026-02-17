@@ -22,9 +22,17 @@ class MomentumStrategyV2 {
       minTrendAlignment: config.minTrendAlignment || 2, // At least 2 timeframes must agree
       minConfidence: config.minConfidence || 0.65,
       
-      // EMA settings
-      emaFast: config.emaFast || 12,
-      emaSlow: config.emaSlow || 26,
+      // EMA settings (tuned for crypto)
+      emaFast: config.emaFast || 9,  // Changed from 12 to 9 (more responsive)
+      emaSlow: config.emaSlow || 21, // Changed from 26 to 21
+      
+      // RSI filter (research: RSI > 50 for longs improves win rate)
+      requireRsiFilter: config.requireRsiFilter !== false,
+      rsiThreshold: config.rsiThreshold || 50,
+      
+      // ADX-style trend strength filter (research: ADX > 20 filters chop)
+      requireAdxFilter: config.requireAdxFilter !== false,
+      adxThreshold: config.adxThreshold || 20,
       
       // MACD confirmation
       requireMacdConfirmation: config.requireMacdConfirmation !== false,
@@ -33,10 +41,10 @@ class MomentumStrategyV2 {
       requireVolumeConfirmation: config.requireVolumeConfirmation !== false,
       volumeThreshold: config.volumeThreshold || 1.2, // 20% above average
       
-      // ATR-based risk
-      stopLossAtrMultiplier: config.stopLossAtrMultiplier || 2.0, // 2x ATR for hard stop
-      takeProfitAtrMultiplier: config.takeProfitAtrMultiplier || 4.0, // 4x ATR for 1:2 risk/reward
-      trailingStopAtrMultiplier: config.trailingStopAtrMultiplier || 1.5, // 1.5x ATR for trailing
+      // ATR-based risk (tighter stops per research)
+      stopLossAtrMultiplier: config.stopLossAtrMultiplier || 1.5, // 1.5x ATR (was 2x)
+      takeProfitAtrMultiplier: config.takeProfitAtrMultiplier || 2.5, // 2.5x ATR (was 4x)
+      trailingStopAtrMultiplier: config.trailingStopAtrMultiplier || 1.0, // 1.0x ATR (was 1.5x)
       
       // Position sizing
       basePositionSize: config.basePositionSize || 0.10, // 10% of balance
@@ -181,6 +189,12 @@ class MomentumStrategyV2 {
       const alignment = this.analyzeTrendAlignment(snapshot);
       const volumeSignal = this.calculateVolumeSignal(marketData, state);
       
+      // Get RSI for momentum filter (research: RSI > 50 for longs improves win rate)
+      const rsi = snapshot.rsi || 50;
+      
+      // Get ADX-style trend strength
+      const trendStrength = state.getTrendStrength ? state.getTrendStrength() : 0;
+      
       // Combine signals
       const combinedSignal = this.combineSignals(
         emaSignal,
@@ -194,14 +208,36 @@ class MomentumStrategyV2 {
       let confidence = combinedSignal.confidence;
       let reason = combinedSignal.reason;
       
+      // RSI Filter: Only buy if RSI aligned with trend (research shows this improves win rate)
+      const rsiAlignedForBuy = rsi > this.config.rsiThreshold;
+      const rsiAlignedForSell = rsi < this.config.rsiThreshold;
+      
+      // ADX Filter: Only trade if trend is strong enough (filters choppy markets)
+      const adxFilterPasses = !this.config.requireAdxFilter || trendStrength > this.config.adxThreshold;
+      
       if (combinedSignal.bullish && alignment.score >= this.config.minTrendAlignment) {
-        action = 'buy';
-        confidence = Math.min(confidence * alignment.bullishScore, 0.95);
+        // Apply RSI and ADX filters
+        if (!rsiAlignedForBuy) {
+          action = 'hold';
+          reason = `RSI ${rsi.toFixed(1)} below ${this.config.rsiThreshold} threshold`;
+        } else if (!adxFilterPasses) {
+          action = 'hold';
+          reason = `ADX filter: trend strength ${trendStrength.toFixed(1)} below ${this.config.adxThreshold}`;
+        } else {
+          action = 'buy';
+          confidence = Math.min(confidence * alignment.bullishScore, 0.95);
+        }
       } else if (combinedSignal.bearish && alignment.score <= -this.config.minTrendAlignment) {
         // Only sell if we have a position (spot-only)
         if (this.position) {
-          action = 'sell';
-          confidence = Math.min(confidence * alignment.bearishScore, 0.95);
+          // Apply RSI filter for sells (exit when RSI crosses below 50)
+          if (!rsiAlignedForSell) {
+            action = 'hold';
+            reason = `RSI ${rsi.toFixed(1)} above ${this.config.rsiThreshold} threshold - not exiting yet`;
+          } else {
+            action = 'sell';
+            confidence = Math.min(confidence * alignment.bearishScore, 0.95);
+          }
         } else {
           action = 'hold';
           reason = `Bearish signal (${combinedSignal.reason}) but no position to sell`;

@@ -28,6 +28,12 @@ class PaperTradingEngine {
       // Partial fill simulation
       partialFillProbability: config.partialFillProbability || 0.3,
       
+      // Hard stop-loss (research: -3% hard stop prevents catastrophic losses)
+      maxLossPercent: config.maxLossPercent || 3.0, // 3% max loss per trade
+      
+      // Trailing stop enabled
+      useTrailingStop: config.useTrailingStop !== false,
+      
       ...config
     };
     
@@ -96,6 +102,9 @@ class PaperTradingEngine {
     
     // Update position PnL
     this.updatePositionPnL(pair, close);
+    
+    // Check for hard stop-loss (research: -3% hard stop prevents catastrophic losses)
+    await this.checkHardStops(pair, close);
     
     // Check for open order fills
     await this.checkOpenOrders(pair, candle);
@@ -442,6 +451,35 @@ class PaperTradingEngine {
     const unrealizedPnl = (currentPrice - position.avgPrice) * position.amount;
     position.unrealizedPnl = unrealizedPnl;
     this.positions.set(pair, position);
+  }
+
+  /**
+   * Check and execute hard stop-losses
+   * Research shows -3% hard stop prevents catastrophic drawdowns
+   */
+  async checkHardStops(pair, currentPrice) {
+    const position = this.positions.get(pair);
+    if (!position || position.amount === 0 || !position.avgPrice) return;
+    
+    const lossPercent = ((currentPrice - position.avgPrice) / position.avgPrice) * 100;
+    
+    // If loss exceeds hard stop threshold, force sell
+    if (lossPercent <= -this.config.maxLossPercent) {
+      logger.warn(`HARD STOP TRIGGERED: ${pair} down ${lossPercent.toFixed(2)}% from ${position.avgPrice.toFixed(2)}`);
+      
+      try {
+        await this.executeTrade({
+          pair,
+          side: 'sell',
+          amount: position.amount,
+          price: currentPrice,
+          reason: 'hard_stop'
+        });
+        logger.info(`HARD STOP SELL: Closed ${position.amount} ${pair} @ ${currentPrice.toFixed(2)}`);
+      } catch (error) {
+        logger.error(`Hard stop failed: ${error.message}`);
+      }
+    }
   }
 
   /**

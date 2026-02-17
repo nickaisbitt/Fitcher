@@ -80,7 +80,7 @@ class SignalAggregator {
       }
 
       // Separate buy and sell signals
-      const buySignals = actionableSignals.filter(s => s.action === 'buy');
+      let buySignals = actionableSignals.filter(s => s.action === 'buy');
       const sellSignals = actionableSignals.filter(s => s.action === 'sell');
 
       // Check for consensus
@@ -88,24 +88,20 @@ class SignalAggregator {
       const hasSellConsensus = sellSignals.length >= this.config.minConsensusCount;
 
       // --- BEAR MARKET DEFENSE (CASH IS KING) ---
+      // Only block on STRONG downtrend (both 4h AND 1d agree)
       const alignment = marketData.regime || 'neutral';
-      const isBearMarket = alignment.includes('downtrend');
+      const isStrongBear = alignment === 'strong_downtrend';
       
-      if (buySignals.length > 0 && isBearMarket) {
-        logger.warn(`CASH IS KING MODE: Blocking ${buySignals.length} buy signals due to ${alignment} trend on 1D/4H.`);
-        // Only allow buys if confidence is extremely high OR trend is neutral/up
-        const highConfidenceBuys = buySignals.filter(s => s.confidence > 0.9);
+      if (buySignals.length > 0 && isStrongBear) {
+        logger.warn(`CASH IS KING MODE: Blocking ${buySignals.length} buy signals due to ${alignment} trend.`);
         
-        if (highConfidenceBuys.length === 0) {
-          return {
-            action: 'hold',
-            confidence: 0,
-            reason: `Bear market defense: ${alignment} trend detected. No high-confidence buys allowed.`,
-            sources: buySignals.map(s => s.strategy)
-          };
-        }
-        // If we proceed, we should only consider the high-confidence buys
-        buySignals = highConfidenceBuys;
+        // In strong downtrend: block ALL buys
+        return {
+          action: 'hold',
+          confidence: 0,
+          reason: `Bear market defense: ${alignment} trend detected. Blocking all buys.`,
+          sources: buySignals.map(s => s.strategy)
+        };
       }
       // -------------------------------------------
       

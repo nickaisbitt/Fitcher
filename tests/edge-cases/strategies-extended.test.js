@@ -55,7 +55,8 @@ describe('Strategy v2 edge cases', () => {
     
     it('Default parameters when none provided', () => {
       const strategy = strategyFactory.create('momentum', {});
-      expect(strategy.config.emaFast).toBe(12);
+      expect(strategy.config.emaFast).toBe(9);
+      expect(strategy.config.emaSlow).toBe(21);
     });
   });
 
