@@ -302,12 +302,23 @@ async function main() {
       timeframeData[tf] = await loadCandles(pair, tf);
     }
     
-    // Use only last N days for initial testing
+    // Use date range or last N days for testing
     const primaryCandles = timeframeData[CONFIG.timeframes[0]];
     if (!primaryCandles) continue;
     
-    const startIndex = Math.max(0, primaryCandles.length - (CONFIG.testStartDays * 24));
-    const testCandles = primaryCandles.slice(startIndex);
+    let testCandles;
+    if (CONFIG.testStartDate && CONFIG.testEndDate) {
+      // Filter by exact dates
+      const startTime = new Date(CONFIG.testStartDate).getTime();
+      const endTime = new Date(CONFIG.testEndDate).getTime();
+      testCandles = primaryCandles.filter(c => c.timestamp >= startTime && c.timestamp <= endTime);
+      logger.info(`Date filter: ${CONFIG.testStartDate} to ${CONFIG.testEndDate}`);
+      logger.info(`Filtered candles: ${testCandles.length}`);
+    } else {
+      // Use last N days
+      const startIndex = Math.max(0, primaryCandles.length - (CONFIG.testStartDays * 24));
+      testCandles = primaryCandles.slice(startIndex);
+    }
     
     // Also filter higher timeframe candles to align with primary
     for (const tf of CONFIG.timeframes) {
