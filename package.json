@@ -10,7 +10,8 @@
     "test:watch": "NODE_ENV=test vitest",
     "backtest": "node scripts/runBacktest.js",
     "backtest:matrix": "node scripts/runBacktestMatrix.js",
-    "strategy:test": "NODE_ENV=test node scripts/strategy-tester.js"
+    "strategy:test": "NODE_ENV=test node scripts/strategy-tester.js",
+    "postinstall": "prisma generate"
   },
   "keywords": [
     "crypto",
