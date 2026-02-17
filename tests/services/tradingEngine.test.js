@@ -22,7 +22,6 @@ describe('TradingEngine', () => {
       aggregatorConfig: { requireConsensus: false, minConsensusCount: 1 } // Allow single signal for reliable testing
     });
   });
-  });
 
   afterEach(() => {
     eventBus.clear();
