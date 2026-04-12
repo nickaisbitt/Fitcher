@@ -304,10 +304,16 @@ class HistoricalDataService {
     const merged = [...existing, ...data];
     merged.sort((a, b) => a.timestamp - b.timestamp);
     
-    // Remove duplicates
-    const unique = merged.filter((item, index, self) =>
-      index === self.findIndex(t => t.timestamp === item.timestamp)
-    );
+    // Remove duplicates (O(n) since array is sorted)
+    const unique = [];
+    if (merged.length > 0) {
+      unique.push(merged[0]);
+      for (let i = 1; i < merged.length; i++) {
+        if (merged[i].timestamp !== merged[i - 1].timestamp) {
+          unique.push(merged[i]);
+        }
+      }
+    }
 
     // Trim to max size
     if (unique.length > this.cacheMaxSize) {

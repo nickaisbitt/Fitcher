@@ -272,12 +272,14 @@ class MarketDataAggregator extends EventEmitter {
     let weightedPriceSum = 0;
     let bestBid = 0;
     let bestAsk = Infinity;
+    const exchanges = [];
     
     for (const price of prices) {
       totalVolume += price.volume;
       weightedPriceSum += price.price * price.volume;
       bestBid = Math.max(bestBid, price.bid);
       bestAsk = Math.min(bestAsk, price.ask);
+      exchanges.push(price.exchange);
     }
     
     const vwap = totalVolume > 0 ? weightedPriceSum / totalVolume : 0;
@@ -293,7 +295,7 @@ class MarketDataAggregator extends EventEmitter {
       spreadPercent,
       totalVolume,
       exchangeCount: prices.length,
-      exchanges: prices.map(p => p.exchange),
+      exchanges,
       timestamp: Date.now(),
       prices: prices
     };
@@ -345,12 +347,30 @@ class MarketDataAggregator extends EventEmitter {
       return this.priceCache.get(key);
     }
     
-    // Get best price across all exchanges
+    // Fallback if exchanges is empty (e.g. tests)
+    if (this.exchanges.size === 0) {
+      let bestPrice = null;
+      let bestSpread = Infinity;
+      for (const [key, data] of this.priceCache) {
+        if (data.type === 'ticker' && data.pair === pair) {
+          const spread = data.ask - data.bid;
+          if (spread < bestSpread) {
+            bestSpread = spread;
+            bestPrice = data;
+          }
+        }
+      }
+      return bestPrice;
+    }
+
+    // Get best price across all exchanges (O(E) instead of O(N))
     let bestPrice = null;
     let bestSpread = Infinity;
     
-    for (const [key, data] of this.priceCache) {
-      if (data.type === 'ticker' && data.pair === pair) {
+    for (const ex of this.exchanges.keys()) {
+      const key = `ticker:${ex}:${pair}`;
+      const data = this.priceCache.get(key);
+      if (data) {
         const spread = data.ask - data.bid;
         if (spread < bestSpread) {
           bestSpread = spread;
@@ -369,7 +389,6 @@ class MarketDataAggregator extends EventEmitter {
       return this.orderBookCache.get(key);
     }
     
-    // Aggregate order books from all exchanges
     const aggregatedBook = {
       pair,
       bids: [],
@@ -377,10 +396,23 @@ class MarketDataAggregator extends EventEmitter {
       timestamp: Date.now()
     };
     
-    for (const [key, data] of this.orderBookCache) {
-      if (data.type === 'orderbook' && data.pair === pair) {
-        aggregatedBook.bids.push(...data.bids.map(b => ({ ...b, exchange: data.exchange })));
-        aggregatedBook.asks.push(...data.asks.map(a => ({ ...a, exchange: data.exchange })));
+    // Fallback if exchanges is empty (e.g. tests)
+    if (this.exchanges.size === 0) {
+      for (const [key, data] of this.orderBookCache) {
+        if (data.type === 'orderbook' && data.pair === pair) {
+          aggregatedBook.bids.push(...data.bids.map(b => ({ ...b, exchange: data.exchange })));
+          aggregatedBook.asks.push(...data.asks.map(a => ({ ...a, exchange: data.exchange })));
+        }
+      }
+    } else {
+      // Aggregate order books from all exchanges (O(E) instead of O(N))
+      for (const ex of this.exchanges.keys()) {
+        const key = `orderbook:${ex}:${pair}`;
+        const data = this.orderBookCache.get(key);
+        if (data) {
+          aggregatedBook.bids.push(...data.bids.map(b => ({ ...b, exchange: data.exchange })));
+          aggregatedBook.asks.push(...data.asks.map(a => ({ ...a, exchange: data.exchange })));
+        }
       }
     }
     
@@ -399,12 +431,23 @@ class MarketDataAggregator extends EventEmitter {
       return trades.slice(-limit);
     }
     
-    // Get trades from all exchanges
     const allTrades = [];
     
-    for (const [key, trades] of this.tradeCache) {
-      if (key.includes(pair)) {
-        allTrades.push(...trades);
+    // Fallback if exchanges is empty (e.g. tests)
+    if (this.exchanges.size === 0) {
+      for (const [key, trades] of this.tradeCache) {
+        if (key.includes(pair)) {
+          allTrades.push(...trades);
+        }
+      }
+    } else {
+      // Get trades from all exchanges (O(E) instead of O(N))
+      for (const ex of this.exchanges.keys()) {
+        const key = `trade:${ex}:${pair}`;
+        const trades = this.tradeCache.get(key);
+        if (trades) {
+          allTrades.push(...trades);
+        }
       }
     }
     
