@@ -26,6 +26,7 @@ class BacktestEngine {
     this.balance = this.config.initialBalance;
     this.holdings = new Map();
     this.indicatorState = null;
+    this.recentCandlesBuffer = []; // Rolling buffer to avoid slicing every candle
   }
 
   /**
@@ -57,6 +58,12 @@ class BacktestEngine {
       // Process each candle
       for (let i = 0; i < historicalData.length; i++) {
         const candle = historicalData[i];
+
+        // Update rolling recent candles buffer
+        this.recentCandlesBuffer.push(candle);
+        if (this.recentCandlesBuffer.length > 100) {
+          this.recentCandlesBuffer.shift();
+        }
 
         // Update indicators incrementally
         this.indicatorState.update(candle.close);
@@ -115,10 +122,6 @@ class BacktestEngine {
    * Format market data for strategy - uses stateful indicators
    */
   formatMarketData(candle, allData, index) {
-    // Provide a reasonable lookback window for strategies that need raw candles
-    const lookback = Math.min(index + 1, 100);
-    const recentCandles = allData.slice(index + 1 - lookback, index + 1);
-
     return {
       timestamp: candle.timestamp,
       pair: candle.pair || 'BTC/USD',
@@ -128,7 +131,8 @@ class BacktestEngine {
       low: candle.low,
       close: candle.close,
       volume: candle.volume,
-      recentCandles,
+      // create a shallow copy so strategies don't accidentally mutate the buffer
+      recentCandles: this.recentCandlesBuffer.slice(),
       indicators: this.indicatorState.getSnapshot()
     };
   }
@@ -224,13 +228,23 @@ class BacktestEngine {
 
     if (this.config.slippageModel === 'dynamic' && marketData.recentCandles?.length >= 2) {
       const candles = marketData.recentCandles;
+      let returnsSum = 0;
+      let count = 0;
       const returns = [];
       for (let i = Math.max(1, candles.length - 20); i < candles.length; i++) {
-        returns.push((candles[i].close - candles[i - 1].close) / candles[i - 1].close);
+        const ret = (candles[i].close - candles[i - 1].close) / candles[i - 1].close;
+        returns.push(ret);
+        returnsSum += ret;
+        count++;
       }
-      if (returns.length > 0) {
-        const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-        const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+      if (count > 0) {
+        const mean = returnsSum / count;
+        let sumSqDiff = 0;
+        for (let i = 0; i < count; i++) {
+          const diff = returns[i] - mean;
+          sumSqDiff += diff * diff;
+        }
+        const variance = sumSqDiff / count;
         slippage *= (1 + Math.sqrt(variance));
       }
     }
@@ -343,17 +357,30 @@ class BacktestEngine {
       return { winningTrades: 0, losingTrades: 0, winRate: 0, avgWin: 0, avgLoss: 0, profitFactor: 0 };
     }
 
-    const winners = completedTrades.filter(t => t.pnl > 0);
-    const losers = completedTrades.filter(t => t.pnl <= 0);
-    const totalWin = winners.reduce((s, t) => s + t.pnl, 0);
-    const totalLoss = Math.abs(losers.reduce((s, t) => s + t.pnl, 0));
+    let winningTradesCount = 0;
+    let losingTradesCount = 0;
+    let totalWin = 0;
+    let totalLossRaw = 0;
+
+    for (let i = 0; i < completedTrades.length; i++) {
+      const pnl = completedTrades[i].pnl;
+      if (pnl > 0) {
+        winningTradesCount++;
+        totalWin += pnl;
+      } else {
+        losingTradesCount++;
+        totalLossRaw += pnl;
+      }
+    }
+
+    const totalLoss = Math.abs(totalLossRaw);
 
     return {
-      winningTrades: winners.length,
-      losingTrades: losers.length,
-      winRate: (winners.length / completedTrades.length) * 100,
-      avgWin: winners.length > 0 ? totalWin / winners.length : 0,
-      avgLoss: losers.length > 0 ? totalLoss / losers.length : 0,
+      winningTrades: winningTradesCount,
+      losingTrades: losingTradesCount,
+      winRate: (winningTradesCount / completedTrades.length) * 100,
+      avgWin: winningTradesCount > 0 ? totalWin / winningTradesCount : 0,
+      avgLoss: losingTradesCount > 0 ? totalLoss / losingTradesCount : 0,
       profitFactor: totalLoss > 0 ? totalWin / totalLoss : totalWin > 0 ? Infinity : 0
     };
   }
@@ -365,16 +392,28 @@ class BacktestEngine {
     if (this.equityCurve.length < 2) return 0;
 
     const returns = [];
+    let returnsSum = 0;
+    let count = 0;
     for (let i = 1; i < this.equityCurve.length; i++) {
       const prev = this.equityCurve[i - 1].totalEquity;
       const curr = this.equityCurve[i].totalEquity;
-      if (prev > 0) returns.push((curr - prev) / prev);
+      if (prev > 0) {
+        const ret = (curr - prev) / prev;
+        returns.push(ret);
+        returnsSum += ret;
+        count++;
+      }
     }
 
-    if (returns.length === 0) return 0;
+    if (count === 0) return 0;
 
-    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-    const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+    const mean = returnsSum / count;
+    let sumSqDiff = 0;
+    for (let i = 0; i < count; i++) {
+      const diff = returns[i] - mean;
+      sumSqDiff += diff * diff;
+    }
+    const variance = sumSqDiff / count;
     const stdDev = Math.sqrt(variance);
     if (stdDev === 0) return 0;
 
@@ -392,6 +431,7 @@ class BacktestEngine {
     this.balance = this.config.initialBalance;
     this.holdings.clear();
     this.indicatorState = null;
+    this.recentCandlesBuffer = [];
   }
 
   getResults() { return this.results; }
