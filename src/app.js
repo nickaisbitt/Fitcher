@@ -136,7 +136,7 @@ io.use((socket, next) => {
     return next(new Error('Authentication required'));
   }
   try {
-    const decoded = jwt.verify(token, config.JWT_SECRET);
+    const decoded = jwt.verify(token, config.JWT_SECRET, { algorithms: ['HS256'] });
     socket.user = decoded;
     next();
   } catch (err) {
