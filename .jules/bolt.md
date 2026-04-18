@@ -1,0 +1,3 @@
+## 2026-04-18 - Array Methods in Hot Loops
+**Learning:** In highly iterated loops like `BacktestEngine.run` or `SmartOrderRouter` assessment routines, chained array methods (`.filter()`, `.reduce()`, `.slice()`) create significant overhead due to intermediate array allocations and multiple iterations. A single `.slice()` per candle across large datasets in backtesting is particularly devastating to performance.
+**Action:** Replace `.slice()` for lookback windows with pre-allocated sliding buffers (push/shift). Replace chained `.filter().reduce()` with single-pass `for` loops in core execution paths.

@@ -54,9 +54,17 @@ class BacktestEngine {
       const startTime = Date.now();
       const signals = [];
 
+      this.recentCandlesBuffer = [];
+
       // Process each candle
       for (let i = 0; i < historicalData.length; i++) {
         const candle = historicalData[i];
+
+        // Maintain a rolling buffer of the last 100 candles
+        this.recentCandlesBuffer.push(candle);
+        if (this.recentCandlesBuffer.length > 100) {
+          this.recentCandlesBuffer.shift();
+        }
 
         // Update indicators incrementally
         this.indicatorState.update(candle.close);
@@ -116,8 +124,8 @@ class BacktestEngine {
    */
   formatMarketData(candle, allData, index) {
     // Provide a reasonable lookback window for strategies that need raw candles
-    const lookback = Math.min(index + 1, 100);
-    const recentCandles = allData.slice(index + 1 - lookback, index + 1);
+    // using the pre-allocated sliding window buffer to avoid array allocations per-candle
+    const recentCandles = [...this.recentCandlesBuffer];
 
     return {
       timestamp: candle.timestamp,
@@ -343,17 +351,28 @@ class BacktestEngine {
       return { winningTrades: 0, losingTrades: 0, winRate: 0, avgWin: 0, avgLoss: 0, profitFactor: 0 };
     }
 
-    const winners = completedTrades.filter(t => t.pnl > 0);
-    const losers = completedTrades.filter(t => t.pnl <= 0);
-    const totalWin = winners.reduce((s, t) => s + t.pnl, 0);
-    const totalLoss = Math.abs(losers.reduce((s, t) => s + t.pnl, 0));
+    let winningTradesCount = 0;
+    let losingTradesCount = 0;
+    let totalWin = 0;
+    let totalLoss = 0;
+
+    for (let i = 0; i < completedTrades.length; i++) {
+      const trade = completedTrades[i];
+      if (trade.pnl > 0) {
+        winningTradesCount++;
+        totalWin += trade.pnl;
+      } else {
+        losingTradesCount++;
+        totalLoss += Math.abs(trade.pnl);
+      }
+    }
 
     return {
-      winningTrades: winners.length,
-      losingTrades: losers.length,
-      winRate: (winners.length / completedTrades.length) * 100,
-      avgWin: winners.length > 0 ? totalWin / winners.length : 0,
-      avgLoss: losers.length > 0 ? totalLoss / losers.length : 0,
+      winningTrades: winningTradesCount,
+      losingTrades: losingTradesCount,
+      winRate: (winningTradesCount / completedTrades.length) * 100,
+      avgWin: winningTradesCount > 0 ? totalWin / winningTradesCount : 0,
+      avgLoss: losingTradesCount > 0 ? totalLoss / losingTradesCount : 0,
       profitFactor: totalLoss > 0 ? totalWin / totalLoss : totalWin > 0 ? Infinity : 0
     };
   }
@@ -392,6 +411,7 @@ class BacktestEngine {
     this.balance = this.config.initialBalance;
     this.holdings.clear();
     this.indicatorState = null;
+    this.recentCandlesBuffer = [];
   }
 
   getResults() { return this.results; }
