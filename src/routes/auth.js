@@ -191,7 +191,7 @@ router.post('/refresh', async (req, res) => {
     }
 
     // Verify refresh token using the dedicated refresh secret
-    const decoded = jwt.verify(refreshToken, config.JWT_REFRESH_SECRET);
+    const decoded = jwt.verify(refreshToken, config.JWT_REFRESH_SECRET, { algorithms: ['HS256'] });
 
     if (decoded.type !== 'refresh') {
       return res.status(401).json({

@@ -1,4 +1,5 @@
 const EventEmitter = require('events');
+const crypto = require('crypto');
 const logger = require('./logger');
 
 /**
@@ -46,7 +47,7 @@ class EventBus extends EventEmitter {
       handler,
       priority,
       once,
-      id: Math.random().toString(36).substr(2, 9)
+      id: crypto.randomBytes(4).toString('hex')
     };
 
     const handlers = this.subscribers.get(event);
@@ -94,7 +95,7 @@ class EventBus extends EventEmitter {
       event,
       data,
       timestamp: Date.now(),
-      id: Math.random().toString(36).substr(2, 9)
+      id: crypto.randomBytes(4).toString('hex')
     };
 
     // Store in history
