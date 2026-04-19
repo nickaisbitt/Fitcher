@@ -224,13 +224,26 @@ class BacktestEngine {
 
     if (this.config.slippageModel === 'dynamic' && marketData.recentCandles?.length >= 2) {
       const candles = marketData.recentCandles;
-      const returns = [];
-      for (let i = Math.max(1, candles.length - 20); i < candles.length; i++) {
-        returns.push((candles[i].close - candles[i - 1].close) / candles[i - 1].close);
+      let sumReturns = 0;
+      let count = 0;
+      const startIndex = Math.max(1, candles.length - 20);
+
+      for (let i = startIndex; i < candles.length; i++) {
+        const ret = (candles[i].close - candles[i - 1].close) / candles[i - 1].close;
+        sumReturns += ret;
+        count++;
       }
-      if (returns.length > 0) {
-        const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-        const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+
+      if (count > 0) {
+        const mean = sumReturns / count;
+        let sumSqDiff = 0;
+
+        for (let i = startIndex; i < candles.length; i++) {
+          const ret = (candles[i].close - candles[i - 1].close) / candles[i - 1].close;
+          sumSqDiff += (ret - mean) ** 2;
+        }
+
+        const variance = sumSqDiff / count;
         slippage *= (1 + Math.sqrt(variance));
       }
     }
@@ -365,16 +378,28 @@ class BacktestEngine {
     if (this.equityCurve.length < 2) return 0;
 
     const returns = [];
+    let sumReturns = 0;
     for (let i = 1; i < this.equityCurve.length; i++) {
       const prev = this.equityCurve[i - 1].totalEquity;
       const curr = this.equityCurve[i].totalEquity;
-      if (prev > 0) returns.push((curr - prev) / prev);
+      if (prev > 0) {
+        const ret = (curr - prev) / prev;
+        returns.push(ret);
+        sumReturns += ret;
+      }
     }
 
-    if (returns.length === 0) return 0;
+    const n = returns.length;
+    if (n === 0) return 0;
 
-    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-    const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+    const mean = sumReturns / n;
+
+    let sumSqDiff = 0;
+    for (let i = 0; i < n; i++) {
+      sumSqDiff += (returns[i] - mean) ** 2;
+    }
+    const variance = sumSqDiff / n;
+
     const stdDev = Math.sqrt(variance);
     if (stdDev === 0) return 0;
 
