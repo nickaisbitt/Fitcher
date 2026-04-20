@@ -277,18 +277,18 @@ class BacktestController {
     const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
     const safePage = Math.max(parseInt(page, 10) || 1, 1);
     const skip = (safePage - 1) * safeLimit;
-    const includeFull = include === 'full';
+    const includeFull = include?.toString() === 'full';
 
     const createdAt = {};
-    if (from) createdAt.gte = new Date(from);
-    if (to) createdAt.lte = new Date(to);
+    if (from) createdAt.gte = new Date(from.toString());
+    if (to) createdAt.lte = new Date(to.toString());
 
     const prisma = database.getPrisma();
     const results = await prisma.backtestResult.findMany({
       where: {
         userId: req.user.userId,
-        ...(type ? { type: type.toUpperCase() } : {}),
-        ...(strategyType ? { strategyType } : {}),
+        ...(type ? { type: type.toString().toUpperCase() } : {}),
+        ...(strategyType ? { strategyType: strategyType.toString() } : {}),
         ...(Object.keys(createdAt).length ? { createdAt } : {})
       },
       orderBy: { createdAt: 'desc' },
