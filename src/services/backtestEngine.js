@@ -224,13 +224,21 @@ class BacktestEngine {
 
     if (this.config.slippageModel === 'dynamic' && marketData.recentCandles?.length >= 2) {
       const candles = marketData.recentCandles;
-      const returns = [];
+      let count = 0;
+      let mean = 0;
+      let M2 = 0;
+
       for (let i = Math.max(1, candles.length - 20); i < candles.length; i++) {
-        returns.push((candles[i].close - candles[i - 1].close) / candles[i - 1].close);
+        const ret = (candles[i].close - candles[i - 1].close) / candles[i - 1].close;
+        count += 1;
+        const delta = ret - mean;
+        mean += delta / count;
+        const delta2 = ret - mean;
+        M2 += delta * delta2;
       }
-      if (returns.length > 0) {
-        const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-        const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+
+      if (count > 0) {
+        const variance = M2 / count;
         slippage *= (1 + Math.sqrt(variance));
       }
     }
@@ -308,6 +316,7 @@ class BacktestEngine {
     const completedTrades = [];
     // Clone buy trades so pairing doesn't mutate the original trade records
     const openBuys = [];
+    let buyIndex = 0;
 
     for (const trade of this.trades) {
       if (trade.side === 'buy') {
@@ -315,8 +324,8 @@ class BacktestEngine {
       } else if (trade.side === 'sell') {
         let remainingSellAmount = trade.amount;
 
-        while (remainingSellAmount > 0 && openBuys.length > 0) {
-          const buy = openBuys[0];
+        while (remainingSellAmount > 0 && buyIndex < openBuys.length) {
+          const buy = openBuys[buyIndex];
           const matchAmount = Math.min(remainingSellAmount, buy.remainingAmount);
           const pnl = (trade.price - buy.price) * matchAmount;
 
@@ -333,7 +342,7 @@ class BacktestEngine {
           buy.remainingAmount -= matchAmount;
 
           if (buy.remainingAmount <= 0) {
-            openBuys.shift();
+            buyIndex++;
           }
         }
       }
@@ -343,17 +352,29 @@ class BacktestEngine {
       return { winningTrades: 0, losingTrades: 0, winRate: 0, avgWin: 0, avgLoss: 0, profitFactor: 0 };
     }
 
-    const winners = completedTrades.filter(t => t.pnl > 0);
-    const losers = completedTrades.filter(t => t.pnl <= 0);
-    const totalWin = winners.reduce((s, t) => s + t.pnl, 0);
-    const totalLoss = Math.abs(losers.reduce((s, t) => s + t.pnl, 0));
+    let winningTrades = 0;
+    let losingTrades = 0;
+    let totalWin = 0;
+    let totalLoss = 0;
+
+    // Single pass calculation instead of chained filter/reduce
+    for (let i = 0; i < completedTrades.length; i++) {
+      const pnl = completedTrades[i].pnl;
+      if (pnl > 0) {
+        winningTrades++;
+        totalWin += pnl;
+      } else {
+        losingTrades++;
+        totalLoss += Math.abs(pnl);
+      }
+    }
 
     return {
-      winningTrades: winners.length,
-      losingTrades: losers.length,
-      winRate: (winners.length / completedTrades.length) * 100,
-      avgWin: winners.length > 0 ? totalWin / winners.length : 0,
-      avgLoss: losers.length > 0 ? totalLoss / losers.length : 0,
+      winningTrades,
+      losingTrades,
+      winRate: (winningTrades / completedTrades.length) * 100,
+      avgWin: winningTrades > 0 ? totalWin / winningTrades : 0,
+      avgLoss: losingTrades > 0 ? totalLoss / losingTrades : 0,
       profitFactor: totalLoss > 0 ? totalWin / totalLoss : totalWin > 0 ? Infinity : 0
     };
   }

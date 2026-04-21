@@ -251,16 +251,30 @@ class MetricsCollector {
       };
     }
     
-    const winning = trades.filter(t => (t.pnl || 0) > 0);
-    const losing = trades.filter(t => (t.pnl || 0) < 0);
-    const totalPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const totalLatency = trades.reduce((sum, t) => sum + (t.latency || 0), 0);
+    let winning = 0;
+    let losing = 0;
+    let totalPnl = 0;
+    let totalLatency = 0;
+
+    for (let i = 0; i < trades.length; i++) {
+      const pnl = trades[i].pnl || 0;
+      const latency = trades[i].latency || 0;
+
+      if (pnl > 0) {
+        winning++;
+      } else if (pnl < 0) {
+        losing++;
+      }
+
+      totalPnl += pnl;
+      totalLatency += latency;
+    }
     
     return {
       total: trades.length,
-      winning: winning.length,
-      losing: losing.length,
-      winRate: (winning.length / trades.length) * 100,
+      winning,
+      losing,
+      winRate: (winning / trades.length) * 100,
       avgPnl: totalPnl / trades.length,
       totalPnl,
       avgLatency: totalLatency / trades.length,
