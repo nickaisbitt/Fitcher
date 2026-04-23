@@ -1,0 +1,3 @@
+## 2024-04-23 - Engine Iteration Performance
+**Learning:** Hot loops in node (e.g. `BacktestEngine.calculateTradeStats`, `calculateExecutionPrice`, and `calculateSharpeRatio`) suffer severe GC pressure and O(N²) degradation when using functional array methods (`reduce`, `filter`, `shift`, spread syntax).
+**Action:** Replace `reduce`/`filter` pipelines with single-pass `for` loops. Use Welford's online algorithm to compute variance iteratively. Replace `Array.shift()` on buffers with ring buffers (fixed size array + head pointer) or dual pointers (read head) to prevent O(N) memory shifting per operation.
