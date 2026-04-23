@@ -117,7 +117,7 @@
     </div>
 
     <!-- Fitcher API Client -->
-    <script src="src/api-client.js"></script>
+    <script src="api-client.js"></script>
     
     <script type="text/babel">
         // Make React hooks available globally
@@ -5335,6 +5335,7 @@ function KrakenTradingBot() {
                         setIsSimulating(false);
                       }}
                       disabled={isSimulating || trades.length < 10}
+                      title={trades.length < 10 ? 'Requires at least 10 trades' : ''}
                       className={`px-4 py-2 rounded-xl text-sm font-medium ${isSimulating ? 'bg-slate-600 cursor-not-allowed' : 'bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600'}`}
                     >
                       {isSimulating ? '⏳ Running...' : '▶ Run Full Analysis'}
@@ -5803,6 +5804,7 @@ function KrakenTradingBot() {
                         <button
                           onClick={runAiAnalysis}
                           disabled={isAiAnalyzing || !settings.openRouterKey}
+                          title={!settings.openRouterKey ? 'Requires OpenRouter API Key' : ''}
                           className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition ${
                             isAiAnalyzing ? 'bg-purple-500/30 text-purple-300' :
                             settings.openRouterKey ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600' :
@@ -6617,7 +6619,19 @@ function KrakenTradingBot() {
               {activeTab === 'trades' && (
                 <div className="h-64 overflow-y-auto">
                   {trades.length === 0 ? (
-                    <div className="text-center text-slate-500 py-8">No trades yet</div>
+                    <div className="flex flex-col items-center justify-center h-full text-slate-500 py-8">
+                      <div className="text-4xl mb-4 opacity-50">📊</div>
+                      <h3 className="text-lg font-medium text-slate-300 mb-2">No Trades Yet</h3>
+                      <p className="text-sm text-center max-w-md mb-6">
+                        Your trading history will appear here once you start executing trades. Keep an eye on the market and find your next opportunity!
+                      </p>
+                      <button
+                        onClick={() => setActiveTab('chart')}
+                        className="px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-slate-200 transition-colors duration-200"
+                      >
+                        View Market Chart
+                      </button>
+                    </div>
                   ) : (
                     <table className="w-full text-sm">
                       <thead className="text-slate-500 text-xs sticky top-0 bg-slate-800/90">
@@ -6818,8 +6832,9 @@ function KrakenTradingBot() {
                         <form onSubmit={handleSubmit} className="space-y-4">
                             {!isLogin && (
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-1">Name</label>
+                                    <label htmlFor="name" className="block text-sm text-slate-400 mb-1">Name <span className="text-red-500">*</span></label>
                                     <input
+                                        id="name"
                                         type="text"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
@@ -6831,8 +6846,9 @@ function KrakenTradingBot() {
                             )}
 
                             <div>
-                                <label className="block text-sm text-slate-400 mb-1">Email</label>
+                                <label htmlFor="email" className="block text-sm text-slate-400 mb-1">Email <span className="text-red-500">*</span></label>
                                 <input
+                                    id="email"
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
@@ -6843,8 +6859,9 @@ function KrakenTradingBot() {
                             </div>
 
                             <div>
-                                <label className="block text-sm text-slate-400 mb-1">Password</label>
+                                <label htmlFor="password" className="block text-sm text-slate-400 mb-1">Password <span className="text-red-500">*</span></label>
                                 <input
+                                    id="password"
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
@@ -6857,8 +6874,14 @@ function KrakenTradingBot() {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 rounded-xl font-semibold text-white transition disabled:opacity-50"
+                                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 rounded-xl font-semibold text-white transition disabled:opacity-50 flex items-center justify-center gap-2"
                             >
+                                {loading && (
+                                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                )}
                                 {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
                             </button>
                         </form>
