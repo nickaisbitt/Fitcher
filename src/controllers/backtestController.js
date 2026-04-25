@@ -264,15 +264,13 @@ class BacktestController {
 
   // GET /api/backtest/history
   history = asyncHandler(async (req, res) => {
-    const {
-      type,
-      strategyType,
-      include,
-      page = 1,
-      limit = 25,
-      from,
-      to
-    } = req.query;
+    const type = req.query.type?.toString();
+    const strategyType = req.query.strategyType?.toString();
+    const include = req.query.include?.toString();
+    const page = req.query.page?.toString() || '1';
+    const limit = req.query.limit?.toString() || '25';
+    const from = req.query.from?.toString();
+    const to = req.query.to?.toString();
 
     const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
     const safePage = Math.max(parseInt(page, 10) || 1, 1);
@@ -326,7 +324,7 @@ class BacktestController {
   // GET /api/backtest/history/:id
   historyById = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { include } = req.query;
+    const include = req.query.include?.toString();
     const includeFull = include === 'full';
 
     const prisma = database.getPrisma();

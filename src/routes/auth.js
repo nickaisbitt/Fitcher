@@ -203,7 +203,25 @@ router.post('/refresh', async (req, res) => {
     // Hash the old refresh token for revocation tracking
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
     logger.info(`Refresh token rotated — revoked token hash: ${tokenHash}, userId: ${decoded.userId}`);
-    // TODO: Store revocation record in Prisma (e.g. RevokedToken table)
+
+    try {
+      const prisma = database.getPrisma();
+      const revoked = await prisma.refreshToken.findUnique({ where: { tokenHash } });
+      if (revoked && revoked.revokedAt) {
+        return res.status(401).json({ success: false, error: 'Token revoked' });
+      }
+      await prisma.refreshToken.create({
+        data: {
+          userId: decoded.userId,
+          tokenHash,
+          family: 'default',
+          expiresAt: new Date(decoded.exp * 1000),
+          revokedAt: new Date()
+        }
+      });
+    } catch (err) {
+      logger.error('DB error on revocation check:', err);
+    }
 
     // Generate new tokens and set cookies
     const tokens = generateTokens(decoded.userId, decoded.email);
@@ -223,7 +241,26 @@ router.post('/refresh', async (req, res) => {
 });
 
 // Logout — clear token cookies
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
+  try {
+    const refreshToken = req.body.refreshToken || req.cookies?.fitcher_refresh_token;
+    if (refreshToken) {
+      const decoded = jwt.verify(refreshToken, config.JWT_REFRESH_SECRET);
+      const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+      const prisma = database.getPrisma();
+      await prisma.refreshToken.create({
+        data: {
+          userId: decoded.userId,
+          tokenHash,
+          family: 'default',
+          expiresAt: new Date(decoded.exp * 1000),
+          revokedAt: new Date()
+        }
+      });
+    }
+  } catch (err) {
+    logger.error('Logout revocation error:', err);
+  }
   clearTokenCookies(res);
   res.json({ success: true });
 });
