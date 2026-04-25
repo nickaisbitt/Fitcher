@@ -1,0 +1,4 @@
+
+## 2026-04-25 - State leakage from Array mutations & Welford's algorithm
+**Learning:** In performance-critical paths (e.g., BacktestEngine), `Array.shift()` inside hot loops is an O(N²) operation that causes massive overhead because it copies remaining elements. Similarly, object spreading `{ ...obj }` creates significant garbage collection pauses. Also, chaining array maps and reduces (like in `calculateExecutionPrice` and `calculateSharpeRatio`) unnecessarily allocates arrays and makes multiple passes over data.
+**Action:** Use tracking pointers/indices instead of `shift()` to iterate over arrays in O(N). Avoid object spreading in hot loops; manually assign fields. Replace chained `.reduce()` variance/stdDev calculations with Welford's single-pass online algorithm to process data without extra array allocations. Finally, remember NEVER to replace `.slice()` with shared mutable buffers for per-tick snapshots (like `recentCandles`) as it causes state leakage.

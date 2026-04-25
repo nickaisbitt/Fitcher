@@ -276,54 +276,71 @@ class StrategyOptimizer {
   }
 
   /**
+   * Compute mean and stdDev using single-pass Welford's online algorithm
+   * @param {Array} values - Values array
+   * @returns {Object} { mean, stdDev }
+   */
+  computeStats(values) {
+    if (!values || values.length === 0) return { mean: 0, stdDev: 0 };
+    if (values.length === 1) return { mean: values[0], stdDev: 0 };
+
+    let count = 0;
+    let mean = 0;
+    let m2 = 0;
+
+    for (let i = 0; i < values.length; i++) {
+      count += 1;
+      const delta = values[i] - mean;
+      mean += delta / count;
+      const delta2 = values[i] - mean;
+      m2 += delta * delta2;
+    }
+
+    const variance = m2 / count;
+    return { mean, stdDev: Math.sqrt(variance) };
+  }
+
+  /**
    * Calculate aggregate statistics across all splits
    * @param {Array} splitResults - Results from each split
    */
   calculateAggregateStats(splitResults) {
     if (splitResults.length === 0) return null;
     
-    const testScores = splitResults.map(s => s.testScore);
-    const trainScores = splitResults.map(s => s.trainScore);
+    const testScores = [];
+    const trainScores = [];
+    let minTestScore = Infinity;
+    let maxTestScore = -Infinity;
+
+    for (let i = 0; i < splitResults.length; i++) {
+      const s = splitResults[i];
+      testScores.push(s.testScore);
+      trainScores.push(s.trainScore);
+
+      if (s.testScore < minTestScore) minTestScore = s.testScore;
+      if (s.testScore > maxTestScore) maxTestScore = s.testScore;
+    }
+
+    const trainStats = this.computeStats(trainScores);
+    const testStats = this.computeStats(testScores);
     
     return {
-      avgTrainScore: this.average(trainScores),
-      avgTestScore: this.average(testScores),
-      stdTrainScore: this.stdDev(trainScores),
-      stdTestScore: this.stdDev(testScores),
-      minTestScore: Math.min(...testScores),
-      maxTestScore: Math.max(...testScores),
-      consistency: this.calculateConsistency(testScores)
+      avgTrainScore: trainStats.mean,
+      avgTestScore: testStats.mean,
+      stdTrainScore: trainStats.stdDev,
+      stdTestScore: testStats.stdDev,
+      minTestScore: minTestScore === Infinity ? 0 : minTestScore,
+      maxTestScore: maxTestScore === -Infinity ? 0 : maxTestScore,
+      consistency: this.calculateConsistency(testStats.mean, testStats.stdDev)
     };
   }
 
   /**
-   * Calculate average
-   * @param {Array} values - Values array
-   */
-  average(values) {
-    if (values.length === 0) return 0;
-    return values.reduce((a, b) => a + b, 0) / values.length;
-  }
-
-  /**
-   * Calculate standard deviation
-   * @param {Array} values - Values array
-   */
-  stdDev(values) {
-    if (values.length < 2) return 0;
-    const avg = this.average(values);
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
-    return Math.sqrt(variance);
-  }
-
-  /**
    * Calculate consistency score (lower std dev = more consistent)
-   * @param {Array} scores - Test scores
+   * @param {Number} avg - Mean score
+   * @param {Number} stdDev - Standard deviation
    */
-  calculateConsistency(scores) {
-    if (scores.length < 2) return 1;
-    const avg = this.average(scores);
-    const stdDev = this.stdDev(scores);
+  calculateConsistency(avg, stdDev) {
     return avg > 0 ? Math.max(0, 1 - (stdDev / avg)) : 0;
   }
 
