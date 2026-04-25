@@ -4610,7 +4610,7 @@ function KrakenTradingBot() {
               <div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`}></div>
               <span className="text-sm text-slate-400">{apiStatus === 'connected' ? 'Kraken Live' : 'Simulated'}</span>
             </div>
-            <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition">⚙️</button>
+            <button aria-label="Settings" onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition">⚙️</button>
           </div>
         </div>
       </header>
@@ -4621,7 +4621,7 @@ function KrakenTradingBot() {
           <div className="bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">⚙️ Settings</h3>
-              <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white">✕</button>
+              <button aria-label="Close settings" onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white">✕</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -6736,7 +6736,11 @@ function KrakenTradingBot() {
                       </span>
                     </div>
                     <button
-                      onClick={() => executeTrade('sell', selectedPair, 'Manual Close')}
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to close this position? This action cannot be undone.')) {
+                          executeTrade('sell', selectedPair, 'Manual Close');
+                        }
+                      }}
                       className="w-full py-2 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 text-sm font-medium hover:bg-red-500/30 transition"
                     >
                       Close Position
@@ -6818,12 +6822,13 @@ function KrakenTradingBot() {
                         <form onSubmit={handleSubmit} className="space-y-4">
                             {!isLogin && (
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-1">Name</label>
+                                    <label htmlFor="auth-name" className="block text-sm text-slate-400 mb-1">Name</label>
                                     <input
+                                        id="auth-name"
                                         type="text"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
-                                        className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                                        className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus-visible:ring-2 focus-visible:ring-cyan-500"
                                         placeholder="Your name"
                                         required={!isLogin}
                                     />
@@ -6831,24 +6836,26 @@ function KrakenTradingBot() {
                             )}
 
                             <div>
-                                <label className="block text-sm text-slate-400 mb-1">Email</label>
+                                <label htmlFor="auth-email" className="block text-sm text-slate-400 mb-1">Email</label>
                                 <input
+                                    id="auth-email"
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus-visible:ring-2 focus-visible:ring-cyan-500"
                                     placeholder="you@example.com"
                                     required
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm text-slate-400 mb-1">Password</label>
+                                <label htmlFor="auth-password" className="block text-sm text-slate-400 mb-1">Password</label>
                                 <input
+                                    id="auth-password"
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus-visible:ring-2 focus-visible:ring-cyan-500"
                                     placeholder="••••••••"
                                     required
                                 />
