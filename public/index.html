@@ -4610,7 +4610,7 @@ function KrakenTradingBot() {
               <div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`}></div>
               <span className="text-sm text-slate-400">{apiStatus === 'connected' ? 'Kraken Live' : 'Simulated'}</span>
             </div>
-            <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition">⚙️</button>
+            <button aria-label="Settings" onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition focus-visible:ring-2 focus-visible:outline-none">⚙️</button>
           </div>
         </div>
       </header>
@@ -4621,7 +4621,7 @@ function KrakenTradingBot() {
           <div className="bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">⚙️ Settings</h3>
-              <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white">✕</button>
+              <button aria-label="Close settings" onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white focus-visible:ring-2 focus-visible:outline-none">✕</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -6751,7 +6751,7 @@ function KrakenTradingBot() {
             {/* Activity Log */}
             <div className="bg-slate-800/30 backdrop-blur rounded-2xl border border-slate-700/50 p-4">
               <div className="text-sm font-medium mb-2">Activity Log</div>
-              <div className="h-24 overflow-y-auto font-mono text-xs space-y-0.5">
+              <div aria-live="polite" className="h-24 overflow-y-auto font-mono text-xs space-y-0.5">
                 {logs.map((l, i) => (
                   <div key={i} className={`${l.type === 'error' ? 'text-red-400' : l.type === 'success' ? 'text-emerald-400' : l.type === 'warning' ? 'text-amber-400' : 'text-slate-400'}`}>
                     <span className="text-slate-600">{l.time}</span> {l.message}
@@ -6818,8 +6818,9 @@ function KrakenTradingBot() {
                         <form onSubmit={handleSubmit} className="space-y-4">
                             {!isLogin && (
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-1">Name</label>
+                                    <label htmlFor="name" className="block text-sm text-slate-400 mb-1">Name</label>
                                     <input
+                                        id="name"
                                         type="text"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
@@ -6831,8 +6832,9 @@ function KrakenTradingBot() {
                             )}
 
                             <div>
-                                <label className="block text-sm text-slate-400 mb-1">Email</label>
+                                <label htmlFor="email" className="block text-sm text-slate-400 mb-1">Email</label>
                                 <input
+                                    id="email"
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
@@ -6843,8 +6845,9 @@ function KrakenTradingBot() {
                             </div>
 
                             <div>
-                                <label className="block text-sm text-slate-400 mb-1">Password</label>
+                                <label htmlFor="password" className="block text-sm text-slate-400 mb-1">Password</label>
                                 <input
+                                    id="password"
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
