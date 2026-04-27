@@ -1,0 +1,3 @@
+## 2026-04-27 - Anti-pattern: Array.shift() and object spreading in loops
+**Learning:** Using `Array.shift()` to process stacks or queues, especially in hot loops like `calculateTradeStats` in `BacktestEngine`, results in O(N²) complexity because shifting elements re-indexes the entire array. Combined with object spreading in loops (e.g., `openBuys.push({ ...trade })`), it also triggers heavy garbage collection overhead.
+**Action:** Always replace `Array.shift()` with an index pointer mechanism (e.g., `let buyIndex = 0; ... openBuys[buyIndex]; buyIndex++;`) and use explicit property assignment over the spread operator to minimize intermediate allocations inside core performance-critical loops.
