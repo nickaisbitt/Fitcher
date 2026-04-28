@@ -1,0 +1,3 @@
+## 2026-04-28 - Avoid O(N²) in hot loops and array methods
+**Learning:** Using `Array.prototype.shift()` and chained array operations like `.reduce()` in hot loops (e.g. `calculateTradeStats`, `calculateExecutionPrice`, `calculateSharpeRatio` in `backtestEngine.js` and `calculateVolatility` in `SmartOrderRouter.js`) causes O(N²) time complexity and creates unnecessary array clones which increases GC overhead.
+**Action:** Use index pointers (like `openBuyIndex` instead of `shift()`) to maintain O(N) complexity in trade parsing. Use Welford's online algorithm to compute variance and standard deviation in a single pass without creating intermediate return arrays or needing two `.reduce()` iterations.
