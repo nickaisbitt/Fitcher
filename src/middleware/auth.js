@@ -3,7 +3,7 @@ const config = require('../config');
 const logger = require('../utils/logger');
 
 const JWT_SECRET = config.JWT_SECRET;
-const JWT_REFRESH_SECRET = config.JWT_REFRESH_SECRET || config.JWT_SECRET;
+const JWT_REFRESH_SECRET = config.JWT_REFRESH_SECRET;
 const JWT_EXPIRES_IN = config.JWT_EXPIRES_IN;
 const REFRESH_TOKEN_EXPIRES_IN = config.REFRESH_TOKEN_EXPIRES_IN || '7d';
 const IS_PRODUCTION = config.NODE_ENV === 'production';

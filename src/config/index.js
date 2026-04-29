@@ -10,7 +10,7 @@ const config = {
   
   // JWT — no fallback; JWT_SECRET must be set in environment
   JWT_SECRET: process.env.JWT_SECRET,
-  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
   REFRESH_TOKEN_EXPIRES_IN: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d',
   
@@ -38,7 +38,7 @@ const config = {
 };
 
 // Validate required environment variables
-const requiredVars = ['DATABASE_URL', 'JWT_SECRET'];
+const requiredVars = ['DATABASE_URL', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
 const missingVars = requiredVars.filter(varName => !config[varName]);
 
 if (missingVars.length > 0) {
