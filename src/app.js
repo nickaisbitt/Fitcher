@@ -64,10 +64,19 @@ let tradingEngine = null;
 const app = express();
 const server = createServer(app);
 
+// CORS origin validation function
+const corsOrigin = (origin, callback) => {
+  if (!origin || origin === config.FRONTEND_URL) {
+    callback(null, true);
+  } else {
+    callback(new Error('Not allowed by CORS'));
+  }
+};
+
 // Configure Socket.io
 const io = new Server(server, {
   cors: {
-    origin: config.FRONTEND_URL,
+    origin: corsOrigin,
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -79,7 +88,7 @@ app.set('io', io);
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: config.FRONTEND_URL,
+  origin: corsOrigin,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

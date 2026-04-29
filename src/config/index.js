@@ -50,4 +50,12 @@ if (missingVars.length > 0) {
   }
 }
 
+// Security validations
+if (config.FRONTEND_URL === '*') {
+  console.error('FRONTEND_URL cannot be a wildcard (*) for security reasons. Please set a specific origin.');
+  if (config.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+}
+
 module.exports = config;

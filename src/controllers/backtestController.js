@@ -279,6 +279,10 @@ class BacktestController {
     const skip = (safePage - 1) * safeLimit;
     const includeFull = include === 'full';
 
+    // Explicitly cast to string to prevent NoSQL injection via object inputs
+    const safeType = type?.toString();
+    const safeStrategyType = strategyType?.toString();
+
     const createdAt = {};
     if (from) createdAt.gte = new Date(from);
     if (to) createdAt.lte = new Date(to);
@@ -287,8 +291,8 @@ class BacktestController {
     const results = await prisma.backtestResult.findMany({
       where: {
         userId: req.user.userId,
-        ...(type ? { type: type.toUpperCase() } : {}),
-        ...(strategyType ? { strategyType } : {}),
+        ...(safeType ? { type: safeType.toUpperCase() } : {}),
+        ...(safeStrategyType ? { strategyType: safeStrategyType } : {}),
         ...(Object.keys(createdAt).length ? { createdAt } : {})
       },
       orderBy: { createdAt: 'desc' },
