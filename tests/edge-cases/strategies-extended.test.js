@@ -24,7 +24,7 @@ describe('Strategy v2 edge cases', () => {
   
   beforeAll(() => {
     // Setup for strategy factory, ensuring it creates V2 classes
-    strategyFactory.create = (type, config) => {
+    strategyFactory.createStrategy = (type, config) => {
       switch(type) {
         case 'momentum': return new MomentumStrategy(config);
         case 'mean_reversion': return new MeanReversionStrategy(config);
@@ -43,18 +43,18 @@ describe('Strategy v2 edge cases', () => {
   // ============================================================================
   describe('Strategy factory', () => {
     it('Creates V2 strategies', () => {
-      expect(strategyFactory.create('momentum').name).toContain('Momentum v2');
-      expect(strategyFactory.create('mean_reversion').name).toContain('Mean Reversion v2');
-      expect(strategyFactory.create('grid').name).toContain('Grid Trading v2');
+      expect(strategyFactory.createStrategy('momentum').name).toContain('Momentum v2');
+      expect(strategyFactory.createStrategy('mean_reversion').name).toContain('Mean Reversion v2');
+      expect(strategyFactory.createStrategy('grid').name).toContain('Grid Trading v2');
     });
 
     it('Applies custom parameters', () => {
-      const strategy = strategyFactory.create('momentum', { trailingStopAtrMultiplier: 5.0 });
+      const strategy = strategyFactory.createStrategy('momentum', { trailingStopAtrMultiplier: 5.0 });
       expect(strategy.config.trailingStopAtrMultiplier).toBe(5.0);
     });
     
     it('Default parameters when none provided', () => {
-      const strategy = strategyFactory.create('momentum', {});
+      const strategy = strategyFactory.createStrategy('momentum', {});
       expect(strategy.config.emaFast).toBe(9);
       expect(strategy.config.emaSlow).toBe(21);
     });
