@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -45,6 +46,23 @@ const validateJWT = (req, res, next) => {
       error: 'Access token required',
       code: 'TOKEN_REQUIRED'
     });
+  }
+
+  // CSRF Protection for state-changing requests when authenticated via cookie
+  if (!headerToken && cookieToken) {
+    const isStateChanging = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method);
+    if (isStateChanging) {
+      const csrfCookie = req.cookies?.csrf_token;
+      const csrfHeader = req.headers['x-csrf-token'];
+
+      if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
+        return res.status(403).json({
+          success: false,
+          error: 'CSRF validation failed',
+          code: 'CSRF_FAILED'
+        });
+      }
+    }
   }
 
   try {
@@ -105,6 +123,16 @@ const setTokenCookies = (res, tokens) => {
     path: '/api/auth/refresh',
     maxAge: refreshMaxAge
   });
+
+  // Set CSRF token cookie for double-submit pattern
+  const csrfToken = crypto.randomBytes(32).toString('hex');
+  res.cookie('csrf_token', csrfToken, {
+    httpOnly: false, // Must be readable by client JS to send in header
+    secure: IS_PRODUCTION,
+    sameSite: 'strict',
+    path: '/',
+    maxAge: accessMaxAge
+  });
 };
 
 // Clear both token cookies
@@ -121,6 +149,13 @@ const clearTokenCookies = (res) => {
     secure: IS_PRODUCTION,
     sameSite: 'strict',
     path: '/api/auth/refresh'
+  });
+
+  res.clearCookie('csrf_token', {
+    httpOnly: false,
+    secure: IS_PRODUCTION,
+    sameSite: 'strict',
+    path: '/'
   });
 };
 

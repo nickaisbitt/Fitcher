@@ -81,6 +81,13 @@ describe('setTokenCookies', () => {
     expect(res.cookies.fitcher_access_token.value).toBe(tokens.accessToken);
   });
 
+  it('sets csrf_token cookie', () => {
+    expect(res.cookies).toHaveProperty('csrf_token');
+    expect(typeof res.cookies.csrf_token.value).toBe('string');
+    expect(res.cookies.csrf_token.value.length).toBeGreaterThan(0);
+    expect(res.cookies.csrf_token.options.httpOnly).toBe(false);
+  });
+
   it('sets fitcher_refresh_token cookie', () => {
     expect(res.cookies).toHaveProperty('fitcher_refresh_token');
     expect(res.cookies.fitcher_refresh_token.value).toBe(tokens.refreshToken);
@@ -143,15 +150,24 @@ describe('clearTokenCookies', () => {
     expect(names).toContain('fitcher_refresh_token');
   });
 
+  it('clears csrf_token', () => {
+    const res = createMockRes();
+    clearTokenCookies(res);
+    const names = res.clearedCookies.map((c) => c.name);
+    expect(names).toContain('csrf_token');
+  });
+
   it('cleared cookies have correct paths', () => {
     const res = createMockRes();
     clearTokenCookies(res);
 
     const accessClear = res.clearedCookies.find((c) => c.name === 'fitcher_access_token');
     const refreshClear = res.clearedCookies.find((c) => c.name === 'fitcher_refresh_token');
+    const csrfClear = res.clearedCookies.find((c) => c.name === 'csrf_token');
 
     expect(accessClear.options.path).toBe('/');
     expect(refreshClear.options.path).toBe('/api/auth/refresh');
+    expect(csrfClear.options.path).toBe('/');
   });
 
   it('returns response for chaining', () => {
@@ -160,7 +176,7 @@ describe('clearTokenCookies', () => {
     const res = createMockRes();
     clearTokenCookies(res);
     // Verify res is still functional after clearing
-    expect(res.clearedCookies).toHaveLength(2);
+    expect(res.clearedCookies).toHaveLength(3);
     expect(() => res.status(200).json({ ok: true })).not.toThrow();
   });
 
@@ -168,7 +184,7 @@ describe('clearTokenCookies', () => {
     const res = createMockRes();
     // No cookies set, clearTokenCookies should still work
     expect(() => clearTokenCookies(res)).not.toThrow();
-    expect(res.clearedCookies).toHaveLength(2);
+    expect(res.clearedCookies).toHaveLength(3);
   });
 });
 
@@ -264,9 +280,60 @@ describe('validateJWT with cookies', () => {
     expect(req.user.type).toBe('access');
   });
 
-  it('works with valid cookie token', () => {
+  it('fails POST request with valid cookie but no CSRF token', () => {
     const tokens = generateTokens('cookie-user', 'cookie@test.com');
     const req = createMockReq({
+      method: 'POST',
+      cookies: { fitcher_access_token: tokens.accessToken, csrf_token: '123' },
+      headers: {} // missing x-csrf-token header
+    });
+    const res = createMockRes();
+    const next = createMockNext();
+
+    validateJWT(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(403);
+    expect(res.body.code).toBe('CSRF_FAILED');
+  });
+
+  it('fails POST request with valid cookie but mismatched CSRF token', () => {
+    const tokens = generateTokens('cookie-user', 'cookie@test.com');
+    const req = createMockReq({
+      method: 'POST',
+      cookies: { fitcher_access_token: tokens.accessToken, csrf_token: '123' },
+      headers: { 'x-csrf-token': '456' } // mismatched header
+    });
+    const res = createMockRes();
+    const next = createMockNext();
+
+    validateJWT(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(403);
+    expect(res.body.code).toBe('CSRF_FAILED');
+  });
+
+  it('works with valid cookie token and matching CSRF token on POST', () => {
+    const tokens = generateTokens('cookie-user', 'cookie@test.com');
+    const req = createMockReq({
+      method: 'POST',
+      cookies: { fitcher_access_token: tokens.accessToken, csrf_token: 'valid-csrf-token' },
+      headers: { 'x-csrf-token': 'valid-csrf-token' }
+    });
+    const res = createMockRes();
+    const next = createMockNext();
+
+    validateJWT(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.statusCode).toBe(200); // unchanged, no error
+  });
+
+  it('works with valid cookie token without CSRF token on GET', () => {
+    const tokens = generateTokens('cookie-user', 'cookie@test.com');
+    const req = createMockReq({
+      method: 'GET',
       cookies: { fitcher_access_token: tokens.accessToken }
     });
     const res = createMockRes();

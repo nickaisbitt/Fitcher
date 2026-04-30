@@ -1,0 +1,4 @@
+## 2024-05-20 - Insecure JWT Cookie Validation
+**Vulnerability:** The application was vulnerable to CSRF attacks because it relied solely on cookies for authentication without implementing anti-CSRF measures.
+**Learning:** SameSite=Strict cookies alone are insufficient to prevent all CSRF scenarios (e.g., cross-site top-level navigations that trigger state-changing GET/POST requests depending on the browser version or specific edge cases).
+**Prevention:** Implement the Double-Submit Cookie pattern. Set a `csrf_token` cookie (`httpOnly: false`) alongside the authentication cookie, and require the client to read it and send its value in an `x-csrf-token` HTTP header for state-changing API requests. Because of the Same-Origin Policy, an attacker's site cannot read the cookie or set the custom header.
