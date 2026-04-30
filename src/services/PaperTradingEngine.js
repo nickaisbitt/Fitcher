@@ -179,49 +179,9 @@ class PaperTradingEngine {
       let realizedPnl = 0;
       
       if (side === 'buy') {
-        const totalCost = orderValue + fee;
-        const currentBalance = this.balance[quoteCurrency] || 0;
-        
-        if (totalCost > currentBalance) {
-          throw new Error(`Insufficient ${quoteCurrency} balance. Need: ${totalCost.toFixed(2)}, Have: ${currentBalance.toFixed(2)}`);
-        }
-        
-        // Update balance
-        this.balance[quoteCurrency] = currentBalance - totalCost;
-        
-        // Update position
-        const position = this.positions.get(pair) || { amount: 0, avgPrice: 0 };
-        const newAmount = position.amount + amount;
-        position.avgPrice = ((position.amount * position.avgPrice) + (amount * fillPrice)) / newAmount;
-        position.amount = newAmount;
-        this.positions.set(pair, position);
-        
+        this._executeBuy(pair, amount, fillPrice, fee, quoteCurrency, orderValue);
       } else { // sell
-        const position = this.positions.get(pair);
-        const currentPositionAmount = position?.amount || 0;
-        
-        if (!position || currentPositionAmount < amount) {
-          throw new Error(`Insufficient ${baseCurrency} position. Need: ${amount}, Have: ${currentPositionAmount.toFixed(8)}`);
-        }
-        
-        const proceeds = orderValue - fee;
-        
-        // Calculate realized PnL BEFORE updating position
-        const avgPriceAtSale = position.avgPrice;
-        realizedPnl = (fillPrice - avgPriceAtSale) * amount - fee;
-        
-        // Update balance
-        this.balance[quoteCurrency] = (this.balance[quoteCurrency] || 0) + proceeds;
-        
-        // Update position
-        position.amount -= amount;
-        if (position.amount === 0) {
-          position.avgPrice = 0;
-        }
-        
-        position.realizedPnl = (position.realizedPnl || 0) + realizedPnl;
-        
-        this.positions.set(pair, position);
+        realizedPnl = this._executeSell(pair, amount, fillPrice, fee, baseCurrency, quoteCurrency, orderValue);
       }
       
       // Record trade (for both buy and sell)
@@ -256,6 +216,55 @@ class PaperTradingEngine {
       }
       throw error;
     }
+  }
+
+  _executeBuy(pair, amount, fillPrice, fee, quoteCurrency, orderValue) {
+    const totalCost = orderValue + fee;
+    const currentBalance = this.balance[quoteCurrency] || 0;
+
+    if (totalCost > currentBalance) {
+      throw new Error(`Insufficient ${quoteCurrency} balance. Need: ${totalCost.toFixed(2)}, Have: ${currentBalance.toFixed(2)}`);
+    }
+
+    // Update balance
+    this.balance[quoteCurrency] = currentBalance - totalCost;
+
+    // Update position
+    const position = this.positions.get(pair) || { amount: 0, avgPrice: 0 };
+    const newAmount = position.amount + amount;
+    position.avgPrice = ((position.amount * position.avgPrice) + (amount * fillPrice)) / newAmount;
+    position.amount = newAmount;
+    this.positions.set(pair, position);
+  }
+
+  _executeSell(pair, amount, fillPrice, fee, baseCurrency, quoteCurrency, orderValue) {
+    const position = this.positions.get(pair);
+    const currentPositionAmount = position?.amount || 0;
+
+    if (!position || currentPositionAmount < amount) {
+      throw new Error(`Insufficient ${baseCurrency} position. Need: ${amount}, Have: ${currentPositionAmount.toFixed(8)}`);
+    }
+
+    const proceeds = orderValue - fee;
+
+    // Calculate realized PnL BEFORE updating position
+    const avgPriceAtSale = position.avgPrice;
+    const realizedPnl = (fillPrice - avgPriceAtSale) * amount - fee;
+
+    // Update balance
+    this.balance[quoteCurrency] = (this.balance[quoteCurrency] || 0) + proceeds;
+
+    // Update position
+    position.amount -= amount;
+    if (position.amount === 0) {
+      position.avgPrice = 0;
+    }
+
+    position.realizedPnl = (position.realizedPnl || 0) + realizedPnl;
+
+    this.positions.set(pair, position);
+
+    return realizedPnl;
   }
 
   /**
