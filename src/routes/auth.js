@@ -203,7 +203,25 @@ router.post('/refresh', async (req, res) => {
     // Hash the old refresh token for revocation tracking
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
     logger.info(`Refresh token rotated — revoked token hash: ${tokenHash}, userId: ${decoded.userId}`);
-    // TODO: Store revocation record in Prisma (e.g. RevokedToken table)
+
+    // Store revocation record in Prisma
+    const prisma = database.getPrisma();
+    const family = decoded.family || crypto.randomBytes(16).toString('hex');
+    try {
+      await prisma.refreshToken.create({
+        data: {
+          id: uuidv4(),
+          userId: decoded.userId,
+          tokenHash,
+          family,
+          expiresAt: new Date(decoded.exp * 1000),
+          revokedAt: new Date(),
+          createdAt: new Date()
+        }
+      });
+    } catch (dbError) {
+      logger.error('Failed to store revoked token record in Prisma:', dbError);
+    }
 
     // Generate new tokens and set cookies
     const tokens = generateTokens(decoded.userId, decoded.email);
