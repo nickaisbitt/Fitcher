@@ -282,8 +282,27 @@ Fitcher Trading System
    * Send webhook alert
    */
   async sendWebhook(alert) {
-    // TODO: Implement webhook integration
-    logger.debug('Webhook delivery not yet implemented');
+    try {
+      const webhookConfig = this.config.webhook;
+      if (!webhookConfig || !webhookConfig.enabled || !webhookConfig.url) return;
+
+      const response = await fetch(webhookConfig.url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(alert)
+      });
+
+      if (!response.ok) {
+        logger.error(`Webhook delivery failed with status ${response.status}`);
+        return;
+      }
+
+      logger.info(`Webhook alert sent to ${webhookConfig.url}`);
+    } catch (error) {
+      logger.error('Failed to send webhook alert:', error);
+    }
   }
 
   /**
