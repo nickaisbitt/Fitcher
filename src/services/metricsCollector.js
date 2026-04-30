@@ -196,14 +196,20 @@ class MetricsCollector {
     });
     
     // Trim user equity history
+    // Bolt Optimization: Track removeCount and splice once instead of shifting in O(N²) loop
     const cutoff = Date.now() - this.config.retentionPeriod;
-    while (history.length > 0 && history[0].timestamp < cutoff) {
-      history.shift();
+    let removeCount = 0;
+    while (removeCount < history.length && history[removeCount].timestamp < cutoff) {
+      removeCount++;
     }
     
-    // Keep max data points
-    while (history.length > this.config.maxDataPoints) {
-      history.shift();
+    const overLimit = history.length - removeCount - this.config.maxDataPoints;
+    if (overLimit > 0) {
+      removeCount += overLimit;
+    }
+
+    if (removeCount > 0) {
+      history.splice(0, removeCount);
     }
   }
 
@@ -212,14 +218,21 @@ class MetricsCollector {
    * @param {Array} dataArray - Data array
    */
   trimOldData(dataArray) {
+    // Bolt Optimization: Track removeCount and splice once instead of shifting in O(N²) loop
     const cutoff = Date.now() - this.config.retentionPeriod;
     
-    while (dataArray.length > 0 && dataArray[0].timestamp < cutoff) {
-      dataArray.shift();
+    let removeCount = 0;
+    while (removeCount < dataArray.length && dataArray[removeCount].timestamp < cutoff) {
+      removeCount++;
     }
     
-    while (dataArray.length > this.config.maxDataPoints) {
-      dataArray.shift();
+    const overLimit = dataArray.length - removeCount - this.config.maxDataPoints;
+    if (overLimit > 0) {
+      removeCount += overLimit;
+    }
+
+    if (removeCount > 0) {
+      dataArray.splice(0, removeCount);
     }
   }
 
@@ -251,16 +264,31 @@ class MetricsCollector {
       };
     }
     
-    const winning = trades.filter(t => (t.pnl || 0) > 0);
-    const losing = trades.filter(t => (t.pnl || 0) < 0);
-    const totalPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const totalLatency = trades.reduce((sum, t) => sum + (t.latency || 0), 0);
+    // Bolt Optimization: Compute aggregations in a single pass instead of chaining array methods (.filter, .reduce)
+    let winningCount = 0;
+    let losingCount = 0;
+    let totalPnl = 0;
+    let totalLatency = 0;
+
+    for (let i = 0; i < trades.length; i++) {
+      const pnl = trades[i].pnl || 0;
+      const latency = trades[i].latency || 0;
+
+      if (pnl > 0) {
+        winningCount++;
+      } else if (pnl < 0) {
+        losingCount++;
+      }
+
+      totalPnl += pnl;
+      totalLatency += latency;
+    }
     
     return {
       total: trades.length,
-      winning: winning.length,
-      losing: losing.length,
-      winRate: (winning.length / trades.length) * 100,
+      winning: winningCount,
+      losing: losingCount,
+      winRate: (winningCount / trades.length) * 100,
       avgPnl: totalPnl / trades.length,
       totalPnl,
       avgLatency: totalLatency / trades.length,
@@ -339,25 +367,25 @@ class MetricsCollector {
    * @param {string} key - Key to group by
    */
   groupBy(array, key) {
-    const groups = {};
+    // Bolt Optimization: Direct grouping aggregation, avoids multiple maps and reduces
+    const stats = {};
     
-    for (const item of array) {
+    for (let i = 0; i < array.length; i++) {
+      const item = array[i];
       const value = item[key] || 'unknown';
-      if (!groups[value]) {
-        groups[value] = [];
+
+      if (!stats[value]) {
+        stats[value] = { count: 0, totalPnl: 0, avgPnl: 0 };
       }
-      groups[value].push(item);
+
+      stats[value].count++;
+      stats[value].totalPnl += (item.pnl || 0);
     }
     
-    // Calculate stats for each group
-    const stats = {};
-    for (const [key, items] of Object.entries(groups)) {
-      const pnls = items.map(i => i.pnl || 0);
-      stats[key] = {
-        count: items.length,
-        totalPnl: pnls.reduce((a, b) => a + b, 0),
-        avgPnl: pnls.reduce((a, b) => a + b, 0) / items.length
-      };
+    for (const group in stats) {
+      if (stats[group].count > 0) {
+        stats[group].avgPnl = stats[group].totalPnl / stats[group].count;
+      }
     }
     
     return stats;
