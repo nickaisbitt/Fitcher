@@ -5,6 +5,8 @@ const logger = require('../utils/logger');
 const redisClient = require('../utils/redis');
 const ExchangeAdapterFactory = require('../adapters/ExchangeAdapterFactory');
 const config = require('../config');
+const database = require('../utils/database');
+const { decrypt, isConfigured } = require('../utils/encryption');
 
 class OrderManager extends EventEmitter {
   constructor(options = {}) {
@@ -308,8 +310,32 @@ class OrderManager extends EventEmitter {
 
   // Get exchange credentials from database
   async getExchangeCredentials(userId, exchange) {
-    // TODO: Load from database
-    // For now, use environment variables for Kraken
+    try {
+      const prisma = database.getPrisma();
+
+      const apiKeyRecord = await prisma.apiKey.findFirst({
+        where: {
+          userId,
+          exchange: exchange.toLowerCase(),
+          isActive: true
+        }
+      });
+
+      if (apiKeyRecord && isConfigured()) {
+        try {
+          return {
+            apiKey: decrypt(apiKeyRecord.apiKeyEncrypted),
+            apiSecret: decrypt(apiKeyRecord.apiSecretEncrypted)
+          };
+        } catch (decryptError) {
+          logger.error(`Failed to decrypt API keys for user ${userId} on ${exchange}:`, decryptError);
+        }
+      }
+    } catch (dbError) {
+      logger.warn(`Failed to retrieve API keys from database for user ${userId} on ${exchange}:`, dbError.message);
+    }
+
+    // Fallback: use environment variables for Kraken
     if (exchange.toLowerCase() === 'kraken') {
       return {
         apiKey: config.KRAKEN_API_KEY,
