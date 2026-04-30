@@ -211,6 +211,44 @@ describe('AlertManager', () => {
     });
   });
 
+  // ── sendEmail ────────────────────────────────────────────────
+
+  describe('sendEmail', () => {
+    it('uses a secure filename format and writes to email directory', async () => {
+      const fs = require('fs').promises;
+      const path = require('path');
+      vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined);
+      const writeFileSpy = vi.spyOn(fs, 'writeFile').mockResolvedValue(undefined);
+
+      const mgr = new AlertManager({
+        email: { enabled: true, recipients: ['test@example.com'] },
+        enabled: true,
+        defaultCooldown: 0
+      });
+
+      await mgr.sendEmail({
+        type: 'test_alert',
+        severity: 'critical',
+        message: 'A critical issue',
+        userId: 'user-1',
+        timestamp: Date.now(),
+        data: {}
+      });
+
+      expect(fs.mkdir).toHaveBeenCalled();
+      expect(writeFileSpy).toHaveBeenCalled();
+
+      const [calledPath, calledContent] = writeFileSpy.mock.calls[0];
+      const filename = path.basename(calledPath);
+
+      // Check that the filename uses UUID format instead of timestamp
+      // Format: email-[UUID].txt
+      expect(filename).toMatch(/^email-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.txt$/);
+      expect(calledContent).toContain('To: test@example.com');
+      expect(calledContent).toContain('Subject: [CRITICAL] test_alert: A critical issue');
+    });
+  });
+
   // ── getAlerts ────────────────────────────────────────────────
 
   describe('getAlerts', () => {
