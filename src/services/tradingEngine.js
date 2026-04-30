@@ -73,7 +73,7 @@ class TradingEngine extends EventEmitter {
     }
     
     if (this.ruleEngine) {
-      await this.ruleEngine.initialize(this.marketDataAggregator);
+      await this.ruleEngine.initialize(this.marketDataAggregator, this.positionManager);
     }
     
     this.isRunning = true;
