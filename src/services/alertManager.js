@@ -238,12 +238,24 @@ class AlertManager {
       // For now, save to file (replace with actual email service)
       const fs = require('fs').promises;
       const path = require('path');
+      const crypto = require('crypto');
+
       const emailDir = path.join(__dirname, '..', '..', 'data', 'emails');
       await fs.mkdir(emailDir, { recursive: true });
       
-      const filename = `email-${Date.now()}.txt`;
+      // Use crypto.randomUUID() for a secure, unpredictable filename
+      // and path.basename to ensure no path traversal is possible
+      const safeId = path.basename(crypto.randomUUID());
+      const filename = `email-${safeId}.txt`;
+      const filePath = path.join(emailDir, filename);
+
+      // Double check that the resolved path is within the intended directory
+      if (!filePath.startsWith(emailDir)) {
+        throw new Error('Invalid file path constructed for email alert');
+      }
+
       await fs.writeFile(
-        path.join(emailDir, filename),
+        filePath,
         `To: ${emailConfig.recipients?.join(', ') || 'admin@fitcher.com'}\nSubject: ${subject}\n\n${body}`
       );
 
