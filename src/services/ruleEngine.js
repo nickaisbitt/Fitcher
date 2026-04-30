@@ -11,14 +11,16 @@ class RuleEngine extends EventEmitter {
     this.evaluationInterval = null;
     this.isRunning = false;
     this.marketDataAggregator = null;
+    this.positionManager = null;
     this.isProcessing = false;
   }
 
   // Initialize rule engine
-  async initialize(marketDataAggregator = null) {
+  async initialize(marketDataAggregator = null, positionManager = null) {
     logger.info('Initializing rule engine...');
     
     this.marketDataAggregator = marketDataAggregator;
+    this.positionManager = positionManager;
     
     // Subscribe to market data events if aggregator provided
     if (marketDataAggregator) {
@@ -310,9 +312,19 @@ class RuleEngine extends EventEmitter {
 
         const marketData = { timestamp: Date.now(), pairs: this.lastMarketData };
         
-        // TODO: Wire real portfolio and position data from positionManager
         const portfolioData = {};
         const positionsData = {};
+
+        if (this.positionManager) {
+          for (const userId of this.userRules.keys()) {
+            try {
+              portfolioData[userId] = await this.positionManager.getPortfolioSummary(userId);
+              positionsData[userId] = await this.positionManager.getUserPositions(userId);
+            } catch (err) {
+              logger.error(`Failed to fetch position data for user ${userId}:`, err);
+            }
+          }
+        }
 
         await this.evaluateRules(marketData, portfolioData, positionsData);
       } catch (error) {
