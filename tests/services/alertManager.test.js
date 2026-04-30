@@ -422,4 +422,96 @@ describe('AlertManager', () => {
       expect(a1.id).not.toBe(a2.id);
     });
   });
+
+  // ── sendSlack ────────────────────────────────────────────────
+
+  describe('sendSlack', () => {
+    let originalFetch;
+
+    beforeEach(() => {
+      originalFetch = global.fetch;
+      global.fetch = vi.fn();
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('does not send if webhook is missing', async () => {
+      const alert = { id: 'test1', type: 'test', severity: 'info', message: 'test', userId: 'user-1' };
+      manager.config.webhook = null;
+      await manager.sendSlack(alert);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('does not send if webhook is disabled', async () => {
+      const alert = { id: 'test1', type: 'test', severity: 'info', message: 'test', userId: 'user-1' };
+      manager.config.webhook = { enabled: false, url: 'https://hooks.slack.com/services/T0000/B0000/XXXX' };
+      await manager.sendSlack(alert);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('does not send if webhook url is missing', async () => {
+      const alert = { id: 'test1', type: 'test', severity: 'info', message: 'test', userId: 'user-1' };
+      manager.config.webhook = { enabled: true, url: '' };
+      await manager.sendSlack(alert);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('sends fetch request with correct payload', async () => {
+      global.fetch.mockResolvedValueOnce({ ok: true });
+      manager.config.webhook = { enabled: true, url: 'https://hooks.slack.com/services/T0000/B0000/XXXX' };
+
+      const alert = {
+        id: 'test1',
+        type: 'trade_executed',
+        severity: 'success',
+        message: 'Bought BTC',
+        userId: 'user-1',
+        data: { amount: 1, price: 50000 }
+      };
+
+      await manager.sendSlack(alert);
+
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(global.fetch).toHaveBeenCalledWith('https://hooks.slack.com/services/T0000/B0000/XXXX', expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.any(String)
+      }));
+
+      const callArgs = global.fetch.mock.calls[0];
+      const payload = JSON.parse(callArgs[1].body);
+
+      expect(payload.text).toBe('[SUCCESS] trade_executed');
+      expect(payload.blocks[0].text.text).toBe('Fitcher Alert: trade_executed');
+      expect(payload.blocks[1].text.text).toContain('Bought BTC');
+      expect(payload.attachments[0].color).toBe('#00ff00');
+      expect(payload.attachments[0].blocks[0].text.text).toContain('50000');
+    });
+
+    it('logs an error if fetch fails', async () => {
+      global.fetch.mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Internal Server Error' });
+      manager.config.webhook = { enabled: true, url: 'https://hooks.slack.com/services/T0000/B0000/XXXX' };
+
+      const alert = { id: 'test1', type: 'test', severity: 'info', message: 'test', userId: 'user-1' };
+
+      await manager.sendSlack(alert);
+
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalledWith('Failed to send Slack alert:', expect.any(Error));
+    });
+
+    it('logs an error if fetch throws an exception', async () => {
+      global.fetch.mockRejectedValueOnce(new Error('Network error'));
+      manager.config.webhook = { enabled: true, url: 'https://hooks.slack.com/services/T0000/B0000/XXXX' };
+
+      const alert = { id: 'test1', type: 'test', severity: 'info', message: 'test', userId: 'user-1' };
+
+      await manager.sendSlack(alert);
+
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalledWith('Failed to send Slack alert:', expect.any(Error));
+    });
+  });
 });

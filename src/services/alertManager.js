@@ -290,8 +290,66 @@ Fitcher Trading System
    * Send Slack alert
    */
   async sendSlack(alert) {
-    // TODO: Implement Slack integration
-    logger.debug('Slack delivery not yet implemented');
+    try {
+      const webhookConfig = this.config.webhook;
+      if (!webhookConfig || !webhookConfig.enabled || !webhookConfig.url) return;
+
+      const colorMap = {
+        info: '#36a64f',
+        success: '#00ff00',
+        warning: '#ffcc00',
+        critical: '#ff0000'
+      };
+
+      const payload = {
+        text: `[${alert.severity.toUpperCase()}] ${alert.type}`,
+        blocks: [
+          {
+            type: 'header',
+            text: {
+              type: 'plain_text',
+              text: `Fitcher Alert: ${alert.type}`,
+              emoji: true
+            }
+          },
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `*Severity:* ${alert.severity.toUpperCase()}\n*Message:* ${alert.message}\n*User:* ${alert.userId}`
+            }
+          }
+        ],
+        attachments: [
+          {
+            color: colorMap[alert.severity] || '#36a64f',
+            blocks: [
+              {
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: `\`\`\`json\n${JSON.stringify(alert.data || {}, null, 2)}\n\`\`\``
+                }
+              }
+            ]
+          }
+        ]
+      };
+
+      const response = await fetch(webhookConfig.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Slack API error: ${response.status} ${response.statusText}`);
+      }
+
+      logger.info(`Slack alert sent successfully for alert ${alert.id}`);
+    } catch (error) {
+      logger.error('Failed to send Slack alert:', error);
+    }
   }
 
   /**
