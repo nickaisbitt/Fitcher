@@ -197,13 +197,17 @@ class MetricsCollector {
     
     // Trim user equity history
     const cutoff = Date.now() - this.config.retentionPeriod;
-    while (history.length > 0 && history[0].timestamp < cutoff) {
-      history.shift();
+    let shiftCount = 0;
+    while (shiftCount < history.length && history[shiftCount].timestamp < cutoff) {
+      shiftCount++;
+    }
+    if (shiftCount > 0) {
+      history.splice(0, shiftCount);
     }
     
     // Keep max data points
-    while (history.length > this.config.maxDataPoints) {
-      history.shift();
+    if (history.length > this.config.maxDataPoints) {
+      history.splice(0, history.length - this.config.maxDataPoints);
     }
   }
 
@@ -214,12 +218,16 @@ class MetricsCollector {
   trimOldData(dataArray) {
     const cutoff = Date.now() - this.config.retentionPeriod;
     
-    while (dataArray.length > 0 && dataArray[0].timestamp < cutoff) {
-      dataArray.shift();
+    let shiftCount = 0;
+    while (shiftCount < dataArray.length && dataArray[shiftCount].timestamp < cutoff) {
+      shiftCount++;
+    }
+    if (shiftCount > 0) {
+      dataArray.splice(0, shiftCount);
     }
     
-    while (dataArray.length > this.config.maxDataPoints) {
-      dataArray.shift();
+    if (dataArray.length > this.config.maxDataPoints) {
+      dataArray.splice(0, dataArray.length - this.config.maxDataPoints);
     }
   }
 
@@ -229,17 +237,35 @@ class MetricsCollector {
    * @param {number} since - Optional time filter
    */
   getTradeStats(userId = null, since = null) {
-    let trades = this.metrics.trades;
+    const rawTrades = this.metrics.trades;
+    let total = 0;
+    let winning = 0;
+    let losing = 0;
+    let totalPnl = 0;
+    let totalLatency = 0;
+    const trades = []; // For groupBy
     
-    if (userId) {
-      trades = trades.filter(t => t.userId === userId);
+    for (let i = 0; i < rawTrades.length; i++) {
+      const t = rawTrades[i];
+      if (userId && t.userId !== userId) continue;
+      if (since && t.timestamp < since) continue;
+
+      trades.push(t);
+      total++;
+
+      const pnl = t.pnl || 0;
+      totalPnl += pnl;
+
+      if (pnl > 0) {
+        winning++;
+      } else if (pnl < 0) {
+        losing++;
+      }
+
+      totalLatency += t.latency || 0;
     }
     
-    if (since) {
-      trades = trades.filter(t => t.timestamp >= since);
-    }
-    
-    if (trades.length === 0) {
+    if (total === 0) {
       return {
         total: 0,
         winning: 0,
@@ -251,19 +277,14 @@ class MetricsCollector {
       };
     }
     
-    const winning = trades.filter(t => (t.pnl || 0) > 0);
-    const losing = trades.filter(t => (t.pnl || 0) < 0);
-    const totalPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const totalLatency = trades.reduce((sum, t) => sum + (t.latency || 0), 0);
-    
     return {
-      total: trades.length,
-      winning: winning.length,
-      losing: losing.length,
-      winRate: (winning.length / trades.length) * 100,
-      avgPnl: totalPnl / trades.length,
+      total,
+      winning,
+      losing,
+      winRate: (winning / total) * 100,
+      avgPnl: totalPnl / total,
       totalPnl,
-      avgLatency: totalLatency / trades.length,
+      avgLatency: totalLatency / total,
       byPair: this.groupBy(trades, 'pair'),
       byStrategy: this.groupBy(trades, 'strategyId')
     };
@@ -339,25 +360,27 @@ class MetricsCollector {
    * @param {string} key - Key to group by
    */
   groupBy(array, key) {
-    const groups = {};
+    const stats = {};
     
-    for (const item of array) {
+    for (let i = 0; i < array.length; i++) {
+      const item = array[i];
       const value = item[key] || 'unknown';
-      if (!groups[value]) {
-        groups[value] = [];
+      const pnl = item.pnl || 0;
+
+      if (!stats[value]) {
+        stats[value] = { count: 0, totalPnl: 0, avgPnl: 0 };
       }
-      groups[value].push(item);
+
+      const group = stats[value];
+      group.count++;
+      group.totalPnl += pnl;
     }
     
-    // Calculate stats for each group
-    const stats = {};
-    for (const [key, items] of Object.entries(groups)) {
-      const pnls = items.map(i => i.pnl || 0);
-      stats[key] = {
-        count: items.length,
-        totalPnl: pnls.reduce((a, b) => a + b, 0),
-        avgPnl: pnls.reduce((a, b) => a + b, 0) / items.length
-      };
+    for (const key in stats) {
+      const group = stats[key];
+      if (group.count > 0) {
+        group.avgPnl = group.totalPnl / group.count;
+      }
     }
     
     return stats;

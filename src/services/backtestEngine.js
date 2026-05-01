@@ -224,13 +224,22 @@ class BacktestEngine {
 
     if (this.config.slippageModel === 'dynamic' && marketData.recentCandles?.length >= 2) {
       const candles = marketData.recentCandles;
-      const returns = [];
-      for (let i = Math.max(1, candles.length - 20); i < candles.length; i++) {
-        returns.push((candles[i].close - candles[i - 1].close) / candles[i - 1].close);
+      const startIdx = Math.max(1, candles.length - 20);
+      let count = 0;
+      let mean = 0;
+      let M2 = 0;
+
+      for (let i = startIdx; i < candles.length; i++) {
+        const ret = (candles[i].close - candles[i - 1].close) / candles[i - 1].close;
+        count++;
+        const delta = ret - mean;
+        mean += delta / count;
+        const delta2 = ret - mean;
+        M2 += delta * delta2;
       }
-      if (returns.length > 0) {
-        const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-        const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+
+      if (count > 0) {
+        const variance = M2 / count;
         slippage *= (1 + Math.sqrt(variance));
       }
     }
@@ -308,15 +317,28 @@ class BacktestEngine {
     const completedTrades = [];
     // Clone buy trades so pairing doesn't mutate the original trade records
     const openBuys = [];
+    let openBuysHead = 0;
 
-    for (const trade of this.trades) {
+    for (let i = 0; i < this.trades.length; i++) {
+      const trade = this.trades[i];
       if (trade.side === 'buy') {
-        openBuys.push({ ...trade, remainingAmount: trade.amount });
+        // Direct assignment instead of expensive object spread
+        openBuys.push({
+          timestamp: trade.timestamp,
+          side: trade.side,
+          asset: trade.asset,
+          amount: trade.amount,
+          price: trade.price,
+          fee: trade.fee,
+          totalCost: trade.totalCost,
+          balance: trade.balance,
+          remainingAmount: trade.amount
+        });
       } else if (trade.side === 'sell') {
         let remainingSellAmount = trade.amount;
 
-        while (remainingSellAmount > 0 && openBuys.length > 0) {
-          const buy = openBuys[0];
+        while (remainingSellAmount > 0 && openBuysHead < openBuys.length) {
+          const buy = openBuys[openBuysHead];
           const matchAmount = Math.min(remainingSellAmount, buy.remainingAmount);
           const pnl = (trade.price - buy.price) * matchAmount;
 
@@ -333,7 +355,8 @@ class BacktestEngine {
           buy.remainingAmount -= matchAmount;
 
           if (buy.remainingAmount <= 0) {
-            openBuys.shift();
+            // Advance head pointer instead of O(N) shift
+            openBuysHead++;
           }
         }
       }
@@ -343,17 +366,28 @@ class BacktestEngine {
       return { winningTrades: 0, losingTrades: 0, winRate: 0, avgWin: 0, avgLoss: 0, profitFactor: 0 };
     }
 
-    const winners = completedTrades.filter(t => t.pnl > 0);
-    const losers = completedTrades.filter(t => t.pnl <= 0);
-    const totalWin = winners.reduce((s, t) => s + t.pnl, 0);
-    const totalLoss = Math.abs(losers.reduce((s, t) => s + t.pnl, 0));
+    let winningTrades = 0;
+    let losingTrades = 0;
+    let totalWin = 0;
+    let totalLoss = 0;
+
+    for (let i = 0; i < completedTrades.length; i++) {
+      const pnl = completedTrades[i].pnl;
+      if (pnl > 0) {
+        winningTrades++;
+        totalWin += pnl;
+      } else {
+        losingTrades++;
+        totalLoss += Math.abs(pnl);
+      }
+    }
 
     return {
-      winningTrades: winners.length,
-      losingTrades: losers.length,
-      winRate: (winners.length / completedTrades.length) * 100,
-      avgWin: winners.length > 0 ? totalWin / winners.length : 0,
-      avgLoss: losers.length > 0 ? totalLoss / losers.length : 0,
+      winningTrades,
+      losingTrades,
+      winRate: (winningTrades / completedTrades.length) * 100,
+      avgWin: winningTrades > 0 ? totalWin / winningTrades : 0,
+      avgLoss: losingTrades > 0 ? totalLoss / losingTrades : 0,
       profitFactor: totalLoss > 0 ? totalWin / totalLoss : totalWin > 0 ? Infinity : 0
     };
   }
@@ -364,17 +398,27 @@ class BacktestEngine {
   calculateSharpeRatio() {
     if (this.equityCurve.length < 2) return 0;
 
-    const returns = [];
+    let count = 0;
+    let mean = 0;
+    let M2 = 0;
+
     for (let i = 1; i < this.equityCurve.length; i++) {
       const prev = this.equityCurve[i - 1].totalEquity;
       const curr = this.equityCurve[i].totalEquity;
-      if (prev > 0) returns.push((curr - prev) / prev);
+
+      if (prev > 0) {
+        const ret = (curr - prev) / prev;
+        count++;
+        const delta = ret - mean;
+        mean += delta / count;
+        const delta2 = ret - mean;
+        M2 += delta * delta2;
+      }
     }
 
-    if (returns.length === 0) return 0;
+    if (count === 0) return 0;
 
-    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-    const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+    const variance = M2 / count;
     const stdDev = Math.sqrt(variance);
     if (stdDev === 0) return 0;
 
