@@ -6,6 +6,7 @@ const JWT_SECRET = config.JWT_SECRET;
 const JWT_REFRESH_SECRET = config.JWT_REFRESH_SECRET || config.JWT_SECRET;
 const JWT_EXPIRES_IN = config.JWT_EXPIRES_IN;
 const REFRESH_TOKEN_EXPIRES_IN = config.REFRESH_TOKEN_EXPIRES_IN || '7d';
+const crypto = require('crypto');
 const IS_PRODUCTION = config.NODE_ENV === 'production';
 
 /**
@@ -38,6 +39,17 @@ const validateJWT = (req, res, next) => {
   const cookieToken = req.cookies?.fitcher_access_token || null;
 
   const token = headerToken || cookieToken;
+
+  if (cookieToken && !headerToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+    const csrfToken = req.headers['x-csrf-token'];
+    if (!csrfToken || csrfToken !== req.cookies?.csrf_token) {
+      return res.status(403).json({
+        success: false,
+        error: 'CSRF token missing or invalid',
+        code: 'CSRF_INVALID'
+      });
+    }
+  }
 
   if (!token) {
     return res.status(401).json({
@@ -105,6 +117,14 @@ const setTokenCookies = (res, tokens) => {
     path: '/api/auth/refresh',
     maxAge: refreshMaxAge
   });
+
+  const csrfToken = crypto.randomUUID();
+  res.cookie('csrf_token', csrfToken, {
+    httpOnly: false,
+    secure: IS_PRODUCTION,
+    sameSite: 'strict',
+    path: '/'
+  });
 };
 
 // Clear both token cookies
@@ -121,6 +141,13 @@ const clearTokenCookies = (res) => {
     secure: IS_PRODUCTION,
     sameSite: 'strict',
     path: '/api/auth/refresh'
+  });
+
+  res.clearCookie('csrf_token', {
+    httpOnly: false,
+    secure: IS_PRODUCTION,
+    sameSite: 'strict',
+    path: '/'
   });
 };
 
