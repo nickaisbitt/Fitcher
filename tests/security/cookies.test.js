@@ -160,7 +160,7 @@ describe('clearTokenCookies', () => {
     const res = createMockRes();
     clearTokenCookies(res);
     // Verify res is still functional after clearing
-    expect(res.clearedCookies).toHaveLength(2);
+    expect(res.clearedCookies).toHaveLength(3);
     expect(() => res.status(200).json({ ok: true })).not.toThrow();
   });
 
@@ -168,7 +168,7 @@ describe('clearTokenCookies', () => {
     const res = createMockRes();
     // No cookies set, clearTokenCookies should still work
     expect(() => clearTokenCookies(res)).not.toThrow();
-    expect(res.clearedCookies).toHaveLength(2);
+    expect(res.clearedCookies).toHaveLength(3);
   });
 });
 

@@ -90,6 +90,7 @@ class ParquetWriter {
     const fileName = `${yearMonth}.parquet`;
     const dirPath = path.join(this.basePath, normalizedPair, timeframe);
     const filePath = path.join(dirPath, fileName);
+    if (!filePath.startsWith(dirPath + path.sep)) throw new Error('Path traversal detected');
 
     try {
       // Ensure directory exists
@@ -173,6 +174,7 @@ class ParquetWriter {
     const fileName = `${yearMonth}.parquet`;
     const dirPath = path.join(this.basePath, normalizedPair, timeframe);
     const filePath = path.join(dirPath, fileName);
+    if (!filePath.startsWith(dirPath + path.sep)) throw new Error('Path traversal detected');
     const tmpPath = filePath + '.tmp';
 
     try {

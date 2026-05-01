@@ -242,8 +242,10 @@ class AlertManager {
       await fs.mkdir(emailDir, { recursive: true });
       
       const filename = `email-${Date.now()}.txt`;
+      const filePath = path.join(emailDir, path.basename(filename));
+      if (!filePath.startsWith(emailDir + path.sep)) throw new Error('Path traversal detected');
       await fs.writeFile(
-        path.join(emailDir, filename),
+        filePath,
         `To: ${emailConfig.recipients?.join(', ') || 'admin@fitcher.com'}\nSubject: ${subject}\n\n${body}`
       );
 
