@@ -112,7 +112,7 @@ class BacktestController {
       });
     }
 
-    const normalizedPair = pair.toUpperCase().replace('-', '/');
+    const normalizedPair = String(pair).toUpperCase().replace('-', '/');
     const historicalData = rawData.map(candle => ({
       ...candle,
       pair: normalizedPair
@@ -186,7 +186,7 @@ class BacktestController {
       });
     }
 
-    const normalizedPair = pair.toUpperCase().replace('-', '/');
+    const normalizedPair = String(pair).toUpperCase().replace('-', '/');
     const historicalData = rawData.map(candle => ({
       ...candle,
       pair: normalizedPair
@@ -287,7 +287,7 @@ class BacktestController {
     const results = await prisma.backtestResult.findMany({
       where: {
         userId: req.user.userId,
-        ...(type ? { type: type.toUpperCase() } : {}),
+        ...(type ? { type: String(type).toUpperCase() } : {}),
         ...(strategyType ? { strategyType } : {}),
         ...(Object.keys(createdAt).length ? { createdAt } : {})
       },
