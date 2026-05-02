@@ -251,16 +251,24 @@ class MetricsCollector {
       };
     }
     
-    const winning = trades.filter(t => (t.pnl || 0) > 0);
-    const losing = trades.filter(t => (t.pnl || 0) < 0);
-    const totalPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const totalLatency = trades.reduce((sum, t) => sum + (t.latency || 0), 0);
+    let winningCount = 0;
+    let losingCount = 0;
+    let totalPnl = 0;
+    let totalLatency = 0;
+
+    for (const trade of trades) {
+      const pnl = trade.pnl || 0;
+      if (pnl > 0) winningCount++;
+      else if (pnl < 0) losingCount++;
+      totalPnl += pnl;
+      totalLatency += (trade.latency || 0);
+    }
     
     return {
       total: trades.length,
-      winning: winning.length,
-      losing: losing.length,
-      winRate: (winning.length / trades.length) * 100,
+      winning: winningCount,
+      losing: losingCount,
+      winRate: (winningCount / trades.length) * 100,
       avgPnl: totalPnl / trades.length,
       totalPnl,
       avgLatency: totalLatency / trades.length,
@@ -344,19 +352,19 @@ class MetricsCollector {
     for (const item of array) {
       const value = item[key] || 'unknown';
       if (!groups[value]) {
-        groups[value] = [];
+        groups[value] = { count: 0, totalPnl: 0 };
       }
-      groups[value].push(item);
+      groups[value].count++;
+      groups[value].totalPnl += (item.pnl || 0);
     }
     
     // Calculate stats for each group
     const stats = {};
-    for (const [key, items] of Object.entries(groups)) {
-      const pnls = items.map(i => i.pnl || 0);
+    for (const [key, group] of Object.entries(groups)) {
       stats[key] = {
-        count: items.length,
-        totalPnl: pnls.reduce((a, b) => a + b, 0),
-        avgPnl: pnls.reduce((a, b) => a + b, 0) / items.length
+        count: group.count,
+        totalPnl: group.totalPnl,
+        avgPnl: group.count > 0 ? group.totalPnl / group.count : 0
       };
     }
     
