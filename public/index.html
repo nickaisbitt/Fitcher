@@ -3256,135 +3256,6 @@ function KrakenTradingBot() {
     addLog('Coinbase connection disabled - use backend API', 'warning');
     addLog('Configure exchange in backend settings', 'info');
   }, [addLog]);
-          const data = JSON.parse(event.data);
-
-          if (data.e === '24hrTicker') {
-            // Convert BTCUSDT back to BTC/USD format
-            let pair = data.s.replace('USDT', '/USD');
-            pair = pair.slice(0, -4) + '/' + pair.slice(-3);
-
-            const price = parseFloat(data.c);
-            const change24h = parseFloat(data.P);
-
-            setPrices(prev => ({
-              ...prev,
-              [pair]: {
-                price,
-                change24h,
-                high24h: parseFloat(data.h),
-                low24h: parseFloat(data.l),
-                volume: parseFloat(data.q),
-                bid: parseFloat(data.b),
-                ask: parseFloat(data.a)
-              }
-            }));
-
-            // Update price history
-            if (!priceHistoryRef.current[pair]) {
-              priceHistoryRef.current[pair] = [];
-            }
-            priceHistoryRef.current[pair].push(price);
-            if (priceHistoryRef.current[pair].length > 1000) {
-              priceHistoryRef.current[pair].shift();
-            }
-          }
-        } catch (e) {}
-      };
-
-      binanceWsRef.current.onerror = (error) => {
-        addLog('Binance WebSocket error', 'error');
-      };
-
-      binanceWsRef.current.onclose = () => {
-        if (apiStatus === 'connected' && activeExchange === 'binance') {
-          addLog('Binance connection closed, reconnecting...', 'warning');
-          setTimeout(connectBinance, 3000);
-        }
-      };
-    } catch (error) {
-      addLog('Failed to connect to Binance: ' + error.message, 'error');
-      setApiStatus('error');
-    }
-  }, [addLog, playSound, apiStatus, activeExchange]);
-
-  // ==================== COINBASE WEBSOCKET API ====================
-  const connectCoinbase = useCallback(() => {
-    if (coinbaseWsRef.current?.readyState === WebSocket.OPEN) {
-      addLog('Already connected to Coinbase', 'warning');
-      return;
-    }
-
-    setApiStatus('connecting');
-    setActiveExchange('coinbase');
-    addLog('🔵 Connecting to Coinbase WebSocket...');
-
-    try {
-      coinbaseWsRef.current = new WebSocket('wss://ws-feed.exchange.coinbase.com');
-
-      coinbaseWsRef.current.onopen = () => {
-        setApiStatus('connected');
-        addLog('✓ Connected to Coinbase WebSocket', 'success');
-        playSound('buy');
-
-        // Subscribe to ticker
-        const productIds = TRADING_PAIRS.slice(0, 15).map(p => toCoinbaseSymbol(p));
-        coinbaseWsRef.current.send(JSON.stringify({
-          type: 'subscribe',
-          product_ids: productIds,
-          channels: ['ticker']
-        }));
-
-        addLog(`Subscribed to ${productIds.length} Coinbase pairs`, 'success');
-      };
-
-      coinbaseWsRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-
-          if (data.type === 'ticker') {
-            const pair = data.product_id.replace('-', '/');
-            const price = parseFloat(data.price);
-
-            setPrices(prev => ({
-              ...prev,
-              [pair]: {
-                price,
-                change24h: ((price - parseFloat(data.open_24h)) / parseFloat(data.open_24h) * 100) || 0,
-                high24h: parseFloat(data.high_24h),
-                low24h: parseFloat(data.low_24h),
-                volume: parseFloat(data.volume_24h),
-                bid: parseFloat(data.best_bid),
-                ask: parseFloat(data.best_ask)
-              }
-            }));
-
-            // Update price history
-            if (!priceHistoryRef.current[pair]) {
-              priceHistoryRef.current[pair] = [];
-            }
-            priceHistoryRef.current[pair].push(price);
-            if (priceHistoryRef.current[pair].length > 1000) {
-              priceHistoryRef.current[pair].shift();
-            }
-          }
-        } catch (e) {}
-      };
-
-      coinbaseWsRef.current.onerror = () => {
-        addLog('Coinbase WebSocket error', 'error');
-      };
-
-      coinbaseWsRef.current.onclose = () => {
-        if (apiStatus === 'connected' && activeExchange === 'coinbase') {
-          addLog('Coinbase connection closed, reconnecting...', 'warning');
-          setTimeout(connectCoinbase, 3000);
-        }
-      };
-    } catch (error) {
-      addLog('Failed to connect to Coinbase: ' + error.message, 'error');
-      setApiStatus('error');
-    }
-  }, [addLog, playSound, apiStatus, activeExchange]);
 
   // Smart connect based on selected exchange
   const connectToExchange = useCallback((exchange) => {
@@ -3402,7 +3273,7 @@ function KrakenTradingBot() {
         connectWebSocket();
         break;
     }
-  }, [disconnectWebSocket, connectBinance, connectCoinbase, connectWebSocket]);
+  }, [disconnectWebSocket, connectBinance, connectWebSocket]);
 
   // Polling interval ref for REST API fallback
   const pollingIntervalRef = useRef(null);
@@ -4610,7 +4481,7 @@ function KrakenTradingBot() {
               <div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`}></div>
               <span className="text-sm text-slate-400">{apiStatus === 'connected' ? 'Kraken Live' : 'Simulated'}</span>
             </div>
-            <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition">⚙️</button>
+            <button aria-label="Settings" onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none">⚙️</button>
           </div>
         </div>
       </header>
@@ -4621,7 +4492,7 @@ function KrakenTradingBot() {
           <div className="bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">⚙️ Settings</h3>
-              <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white">✕</button>
+              <button aria-label="Close settings" onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none rounded">✕</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -6617,7 +6488,17 @@ function KrakenTradingBot() {
               {activeTab === 'trades' && (
                 <div className="h-64 overflow-y-auto">
                   {trades.length === 0 ? (
-                    <div className="text-center text-slate-500 py-8">No trades yet</div>
+                    <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                      <div className="text-4xl mb-3">📊</div>
+                      <div className="text-lg font-medium text-slate-300 mb-1">No trades executed yet</div>
+                      <div className="text-sm text-slate-500 mb-4 max-w-xs">Start the trading bot or run a backtest to see your trading history here.</div>
+                      <button
+                        onClick={() => setActiveTab('backtest')}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                      >
+                        Run a Backtest
+                      </button>
+                    </div>
                   ) : (
                     <table className="w-full text-sm">
                       <thead className="text-slate-500 text-xs sticky top-0 bg-slate-800/90">
@@ -6818,12 +6699,13 @@ function KrakenTradingBot() {
                         <form onSubmit={handleSubmit} className="space-y-4">
                             {!isLogin && (
                                 <div>
-                                    <label className="block text-sm text-slate-400 mb-1">Name</label>
+                                    <label htmlFor="auth-name" className="block text-sm text-slate-400 mb-1">Name</label>
                                     <input
+                                        id="auth-name"
                                         type="text"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
-                                        className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                                        className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus-visible:ring-2 focus-visible:ring-cyan-500"
                                         placeholder="Your name"
                                         required={!isLogin}
                                     />
@@ -6831,24 +6713,26 @@ function KrakenTradingBot() {
                             )}
 
                             <div>
-                                <label className="block text-sm text-slate-400 mb-1">Email</label>
+                                <label htmlFor="auth-email" className="block text-sm text-slate-400 mb-1">Email</label>
                                 <input
+                                    id="auth-email"
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus-visible:ring-2 focus-visible:ring-cyan-500"
                                     placeholder="you@example.com"
                                     required
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm text-slate-400 mb-1">Password</label>
+                                <label htmlFor="auth-password" className="block text-sm text-slate-400 mb-1">Password</label>
                                 <input
+                                    id="auth-password"
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus-visible:ring-2 focus-visible:ring-cyan-500"
                                     placeholder="••••••••"
                                     required
                                 />
@@ -6857,9 +6741,19 @@ function KrakenTradingBot() {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 rounded-xl font-semibold text-white transition disabled:opacity-50"
+                                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 rounded-xl font-semibold text-white transition disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none flex justify-center items-center gap-2"
                             >
-                                {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
+                                {loading ? (
+                                    <>
+                                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span>Please wait...</span>
+                                    </>
+                                ) : (
+                                    <span>{isLogin ? 'Sign In' : 'Create Account'}</span>
+                                )}
                             </button>
                         </form>
 
