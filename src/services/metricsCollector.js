@@ -195,16 +195,7 @@ class MetricsCollector {
       ...breakdown
     });
     
-    // Trim user equity history
-    const cutoff = Date.now() - this.config.retentionPeriod;
-    while (history.length > 0 && history[0].timestamp < cutoff) {
-      history.shift();
-    }
-    
-    // Keep max data points
-    while (history.length > this.config.maxDataPoints) {
-      history.shift();
-    }
+    this.trimOldData(history);
   }
 
   /**
@@ -212,14 +203,28 @@ class MetricsCollector {
    * @param {Array} dataArray - Data array
    */
   trimOldData(dataArray) {
+    // ⚡ Bolt Optimization: Replace O(n²) `Array.shift()` in loop with single `Array.splice()`
+    // Impact: Avoids array re-indexing on every deletion, significantly speeding up garbage collection
+    // Measurement: Operations complete in O(n) instead of O(n^2), improving processing of large data sets.
     const cutoff = Date.now() - this.config.retentionPeriod;
     
-    while (dataArray.length > 0 && dataArray[0].timestamp < cutoff) {
-      dataArray.shift();
+    // Find index of first item >= cutoff
+    let cutoffIdx = 0;
+    while (cutoffIdx < dataArray.length && dataArray[cutoffIdx].timestamp < cutoff) {
+      cutoffIdx++;
+    }
+
+    // Calculate total items to remove due to time OR max size constraint
+    const maxDataPoints = this.config.maxDataPoints;
+    let removeCount = cutoffIdx;
+
+    const remainingAfterTimeCutoff = dataArray.length - removeCount;
+    if (remainingAfterTimeCutoff > maxDataPoints) {
+      removeCount += (remainingAfterTimeCutoff - maxDataPoints);
     }
     
-    while (dataArray.length > this.config.maxDataPoints) {
-      dataArray.shift();
+    if (removeCount > 0) {
+      dataArray.splice(0, removeCount);
     }
   }
 

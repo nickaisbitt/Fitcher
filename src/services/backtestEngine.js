@@ -309,14 +309,18 @@ class BacktestEngine {
     // Clone buy trades so pairing doesn't mutate the original trade records
     const openBuys = [];
 
+    // ⚡ Bolt Optimization: Use pointer `buyIdx` instead of `openBuys.shift()`
+    // Impact: Eliminates O(n²) memory shifting overhead when pairing trades in high-frequency backtests
+    // Measurement: Trade processing loops finish in O(n) instead of O(n^2), critical for long backtests
+    let buyIdx = 0;
     for (const trade of this.trades) {
       if (trade.side === 'buy') {
         openBuys.push({ ...trade, remainingAmount: trade.amount });
       } else if (trade.side === 'sell') {
         let remainingSellAmount = trade.amount;
 
-        while (remainingSellAmount > 0 && openBuys.length > 0) {
-          const buy = openBuys[0];
+        while (remainingSellAmount > 0 && buyIdx < openBuys.length) {
+          const buy = openBuys[buyIdx];
           const matchAmount = Math.min(remainingSellAmount, buy.remainingAmount);
           const pnl = (trade.price - buy.price) * matchAmount;
 
@@ -333,7 +337,7 @@ class BacktestEngine {
           buy.remainingAmount -= matchAmount;
 
           if (buy.remainingAmount <= 0) {
-            openBuys.shift();
+            buyIdx++;
           }
         }
       }
@@ -343,17 +347,31 @@ class BacktestEngine {
       return { winningTrades: 0, losingTrades: 0, winRate: 0, avgWin: 0, avgLoss: 0, profitFactor: 0 };
     }
 
-    const winners = completedTrades.filter(t => t.pnl > 0);
-    const losers = completedTrades.filter(t => t.pnl <= 0);
-    const totalWin = winners.reduce((s, t) => s + t.pnl, 0);
-    const totalLoss = Math.abs(losers.reduce((s, t) => s + t.pnl, 0));
+    // ⚡ Bolt Optimization: Use single loop instead of chained `.filter()` and `.reduce()`
+    // Impact: Avoids multiple passes and array copies
+    // Measurement: O(n) single pass computation reduces execution time and garbage generation
+    let winningTrades = 0;
+    let losingTrades = 0;
+    let totalWin = 0;
+    let totalLoss = 0;
+
+    for (let i = 0; i < completedTrades.length; i++) {
+      const trade = completedTrades[i];
+      if (trade.pnl > 0) {
+        winningTrades++;
+        totalWin += trade.pnl;
+      } else {
+        losingTrades++;
+        totalLoss += Math.abs(trade.pnl);
+      }
+    }
 
     return {
-      winningTrades: winners.length,
-      losingTrades: losers.length,
-      winRate: (winners.length / completedTrades.length) * 100,
-      avgWin: winners.length > 0 ? totalWin / winners.length : 0,
-      avgLoss: losers.length > 0 ? totalLoss / losers.length : 0,
+      winningTrades,
+      losingTrades,
+      winRate: (winningTrades / completedTrades.length) * 100,
+      avgWin: winningTrades > 0 ? totalWin / winningTrades : 0,
+      avgLoss: losingTrades > 0 ? totalLoss / losingTrades : 0,
       profitFactor: totalLoss > 0 ? totalWin / totalLoss : totalWin > 0 ? Infinity : 0
     };
   }
