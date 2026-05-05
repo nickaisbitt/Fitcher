@@ -1,0 +1,4 @@
+## 2026-05-05 - Backtest Engine Optimizations
+
+**Learning:** Hot loops in array processing—specifically object spreading (`{...trade}`), `Array.shift()`, and chained methods like `.filter()` followed by `.reduce()`—introduce severe performance bottlenecks due to O(N²) time complexity and heavy garbage collection overhead. Computing statistical metrics (mean, variance) using multiple passes through dynamically allocated arrays worsens the problem during backtesting.
+**Action:** Resolve these bottlenecks by replacing `Array.shift()` and object spreading with explicit index pointers and selective property assignment. Replace chained array iterations with single-pass `for` loops. Utilize Welford's online algorithm to efficiently compute variance and mean in a single pass without allocating temporary arrays.
