@@ -224,13 +224,23 @@ class BacktestEngine {
 
     if (this.config.slippageModel === 'dynamic' && marketData.recentCandles?.length >= 2) {
       const candles = marketData.recentCandles;
-      const returns = [];
+
+      // ⚡ Bolt Optimization: Use Welford's online algorithm to compute mean and variance in a single pass.
+      // This eliminates the need for temporary array allocation and multiple O(N) chained reduce() iterations.
+      let count = 0;
+      let mean = 0;
+      let m2 = 0;
+
       for (let i = Math.max(1, candles.length - 20); i < candles.length; i++) {
-        returns.push((candles[i].close - candles[i - 1].close) / candles[i - 1].close);
+        const r = (candles[i].close - candles[i - 1].close) / candles[i - 1].close;
+        count += 1;
+        const delta = r - mean;
+        mean += delta / count;
+        const delta2 = r - mean;
+        m2 += delta * delta2;
       }
-      if (returns.length > 0) {
-        const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-        const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+      if (count > 0) {
+        const variance = m2 / count;
         slippage *= (1 + Math.sqrt(variance));
       }
     }
@@ -309,31 +319,40 @@ class BacktestEngine {
     // Clone buy trades so pairing doesn't mutate the original trade records
     const openBuys = [];
 
+    // ⚡ Bolt Optimization: Replace Array.shift() with an index pointer.
+    // Array.shift() has O(N) complexity since it re-indexes the array. Using a pointer avoids O(N^2) behavior in this hot loop.
+    let openBuysIndex = 0;
+
     for (const trade of this.trades) {
       if (trade.side === 'buy') {
-        openBuys.push({ ...trade, remainingAmount: trade.amount });
+        // ⚡ Bolt Optimization: Wrap the original trade object instead of object spreading ({ ...trade }).
+        // This avoids garbage collection overhead while preserving the original trade properties.
+        openBuys.push({
+          trade,
+          remainingAmount: trade.amount
+        });
       } else if (trade.side === 'sell') {
         let remainingSellAmount = trade.amount;
 
-        while (remainingSellAmount > 0 && openBuys.length > 0) {
-          const buy = openBuys[0];
-          const matchAmount = Math.min(remainingSellAmount, buy.remainingAmount);
-          const pnl = (trade.price - buy.price) * matchAmount;
+        while (remainingSellAmount > 0 && openBuysIndex < openBuys.length) {
+          const buyWrapper = openBuys[openBuysIndex];
+          const matchAmount = Math.min(remainingSellAmount, buyWrapper.remainingAmount);
+          const pnl = (trade.price - buyWrapper.trade.price) * matchAmount;
 
           completedTrades.push({
-            entryPrice: buy.price,
+            entryPrice: buyWrapper.trade.price,
             exitPrice: trade.price,
             amount: matchAmount,
             pnl,
-            pnlPercent: (pnl / (buy.price * matchAmount)) * 100,
-            duration: trade.timestamp - buy.timestamp
+            pnlPercent: (pnl / (buyWrapper.trade.price * matchAmount)) * 100,
+            duration: trade.timestamp - buyWrapper.trade.timestamp
           });
 
           remainingSellAmount -= matchAmount;
-          buy.remainingAmount -= matchAmount;
+          buyWrapper.remainingAmount -= matchAmount;
 
-          if (buy.remainingAmount <= 0) {
-            openBuys.shift();
+          if (buyWrapper.remainingAmount <= 0) {
+            openBuysIndex++;
           }
         }
       }
@@ -343,17 +362,32 @@ class BacktestEngine {
       return { winningTrades: 0, losingTrades: 0, winRate: 0, avgWin: 0, avgLoss: 0, profitFactor: 0 };
     }
 
-    const winners = completedTrades.filter(t => t.pnl > 0);
-    const losers = completedTrades.filter(t => t.pnl <= 0);
-    const totalWin = winners.reduce((s, t) => s + t.pnl, 0);
-    const totalLoss = Math.abs(losers.reduce((s, t) => s + t.pnl, 0));
+    // ⚡ Bolt Optimization: Use a single-pass `for` loop to compute trade statistics.
+    // This replaces multiple chained array operations (.filter(), .reduce()) that allocated temporary arrays.
+    let winningTradesCount = 0;
+    let losingTradesCount = 0;
+    let totalWin = 0;
+    let totalLossRaw = 0;
+
+    for (let i = 0; i < completedTrades.length; i++) {
+      const pnl = completedTrades[i].pnl;
+      if (pnl > 0) {
+        winningTradesCount++;
+        totalWin += pnl;
+      } else {
+        losingTradesCount++;
+        totalLossRaw += pnl;
+      }
+    }
+
+    const totalLoss = Math.abs(totalLossRaw);
 
     return {
-      winningTrades: winners.length,
-      losingTrades: losers.length,
-      winRate: (winners.length / completedTrades.length) * 100,
-      avgWin: winners.length > 0 ? totalWin / winners.length : 0,
-      avgLoss: losers.length > 0 ? totalLoss / losers.length : 0,
+      winningTrades: winningTradesCount,
+      losingTrades: losingTradesCount,
+      winRate: (winningTradesCount / completedTrades.length) * 100,
+      avgWin: winningTradesCount > 0 ? totalWin / winningTradesCount : 0,
+      avgLoss: losingTradesCount > 0 ? totalLoss / losingTradesCount : 0,
       profitFactor: totalLoss > 0 ? totalWin / totalLoss : totalWin > 0 ? Infinity : 0
     };
   }
@@ -364,17 +398,28 @@ class BacktestEngine {
   calculateSharpeRatio() {
     if (this.equityCurve.length < 2) return 0;
 
-    const returns = [];
+    // ⚡ Bolt Optimization: Use Welford's online algorithm to calculate mean and variance.
+    // Computes the values in a single pass without dynamically allocating an array of returns.
+    let count = 0;
+    let mean = 0;
+    let m2 = 0;
+
     for (let i = 1; i < this.equityCurve.length; i++) {
       const prev = this.equityCurve[i - 1].totalEquity;
       const curr = this.equityCurve[i].totalEquity;
-      if (prev > 0) returns.push((curr - prev) / prev);
+      if (prev > 0) {
+        const r = (curr - prev) / prev;
+        count += 1;
+        const delta = r - mean;
+        mean += delta / count;
+        const delta2 = r - mean;
+        m2 += delta * delta2;
+      }
     }
 
-    if (returns.length === 0) return 0;
+    if (count === 0) return 0;
 
-    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-    const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / returns.length;
+    const variance = m2 / count;
     const stdDev = Math.sqrt(variance);
     if (stdDev === 0) return 0;
 
