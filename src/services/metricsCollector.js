@@ -195,16 +195,8 @@ class MetricsCollector {
       ...breakdown
     });
     
-    // Trim user equity history
-    const cutoff = Date.now() - this.config.retentionPeriod;
-    while (history.length > 0 && history[0].timestamp < cutoff) {
-      history.shift();
-    }
-    
-    // Keep max data points
-    while (history.length > this.config.maxDataPoints) {
-      history.shift();
-    }
+    // Trim user equity history using the optimized method
+    this.trimOldData(history);
   }
 
   /**
@@ -214,12 +206,17 @@ class MetricsCollector {
   trimOldData(dataArray) {
     const cutoff = Date.now() - this.config.retentionPeriod;
     
-    while (dataArray.length > 0 && dataArray[0].timestamp < cutoff) {
-      dataArray.shift();
+    let shiftCount = 0;
+    while (shiftCount < dataArray.length && dataArray[shiftCount].timestamp < cutoff) {
+      shiftCount++;
     }
     
-    while (dataArray.length > this.config.maxDataPoints) {
-      dataArray.shift();
+    if (dataArray.length - shiftCount > this.config.maxDataPoints) {
+      shiftCount = dataArray.length - this.config.maxDataPoints;
+    }
+
+    if (shiftCount > 0) {
+      dataArray.splice(0, shiftCount);
     }
   }
 
@@ -251,16 +248,27 @@ class MetricsCollector {
       };
     }
     
-    const winning = trades.filter(t => (t.pnl || 0) > 0);
-    const losing = trades.filter(t => (t.pnl || 0) < 0);
-    const totalPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const totalLatency = trades.reduce((sum, t) => sum + (t.latency || 0), 0);
+    let winningCount = 0;
+    let losingCount = 0;
+    let totalPnl = 0;
+    let totalLatency = 0;
+
+    for (const t of trades) {
+      const pnl = t.pnl || 0;
+      if (pnl > 0) {
+        winningCount++;
+      } else if (pnl < 0) {
+        losingCount++;
+      }
+      totalPnl += pnl;
+      totalLatency += t.latency || 0;
+    }
     
     return {
       total: trades.length,
-      winning: winning.length,
-      losing: losing.length,
-      winRate: (winning.length / trades.length) * 100,
+      winning: winningCount,
+      losing: losingCount,
+      winRate: (winningCount / trades.length) * 100,
       avgPnl: totalPnl / trades.length,
       totalPnl,
       avgLatency: totalLatency / trades.length,
