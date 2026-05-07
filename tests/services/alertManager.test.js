@@ -422,4 +422,73 @@ describe('AlertManager', () => {
       expect(a1.id).not.toBe(a2.id);
     });
   });
+
+  // ── sendWebhook ──────────────────────────────────────────────
+
+  describe('sendWebhook', () => {
+    let originalFetch;
+
+    beforeEach(() => {
+      originalFetch = global.fetch;
+      global.fetch = vi.fn();
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('returns early if webhook config is missing', async () => {
+      manager.config.webhook = null;
+      await manager.sendWebhook({ id: 'alert-1' });
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('returns early if webhook is disabled', async () => {
+      manager.config.webhook = { enabled: false, url: 'http://example.com/webhook' };
+      await manager.sendWebhook({ id: 'alert-1' });
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('returns early if webhook url is missing', async () => {
+      manager.config.webhook = { enabled: true, url: '' };
+      await manager.sendWebhook({ id: 'alert-1' });
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('sends webhook successfully', async () => {
+      manager.config.webhook = { enabled: true, url: 'http://example.com/webhook' };
+      global.fetch.mockResolvedValueOnce({ ok: true });
+      const alert = { id: 'alert-1', message: 'test alert' };
+
+      await manager.sendWebhook(alert);
+
+      expect(global.fetch).toHaveBeenCalledWith('http://example.com/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(alert)
+      });
+      expect(logger.info).toHaveBeenCalledWith('Webhook alert sent to http://example.com/webhook');
+    });
+
+    it('logs error if webhook delivery fails with non-ok status', async () => {
+      manager.config.webhook = { enabled: true, url: 'http://example.com/webhook' };
+      global.fetch.mockResolvedValueOnce({ ok: false, status: 500 });
+
+      await manager.sendWebhook({ id: 'alert-1' });
+
+      expect(global.fetch).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith('Webhook delivery failed with status 500');
+    });
+
+    it('logs error if fetch throws an exception', async () => {
+      manager.config.webhook = { enabled: true, url: 'http://example.com/webhook' };
+      const error = new Error('Network error');
+      global.fetch.mockRejectedValueOnce(error);
+
+      await manager.sendWebhook({ id: 'alert-1' });
+
+      expect(global.fetch).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith('Failed to send webhook alert:', error);
+    });
+  });
 });
