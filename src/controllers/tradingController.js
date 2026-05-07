@@ -65,6 +65,18 @@ class TradingController {
     ];
   }
 
+  // Order submission
+  async submitOrder(req, res) {
+    try {
+      const orderResult = await this.orderManager.createOrder(req.body);
+      return res.json(orderResult);
+    } catch (error) {
+      logger.error('Order submission failed', error);
+      res.status(500).json({ error: 'Order submission failed' });
+    }
+  }
+
+
   // POST /api/trading/orders - Create new order
   createOrder = asyncHandler(async (req, res) => {
     const userId = req.user.userId;
