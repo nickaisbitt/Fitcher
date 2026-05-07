@@ -1,0 +1,3 @@
+## 2026-05-07 - Add comprehensive unit testing for Redis Util with `ioredis`
+**Learning:** `Redis.prototype` methods in the `ioredis` class can be dynamically generated depending on version/environment, or internal initialization scopes can thwart testing logic if we don't mock strictly.
+**Action:** When mocking complex Node APIs like Redis connection managers, stubbing connection handlers (`on`, `once`, `connect`) while spying directly on the returned client instances allows seamless testing of network logic independently from state changes without needing external local dependencies like `ioredis-mock`.

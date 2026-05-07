@@ -66,8 +66,10 @@ const redis = {
   disconnect: async () => {
     if (redisClient && !isMockMode) {
       await redisClient.quit();
+      redisClient = null;
       logger.info('Disconnected from Redis');
     }
+    isMockMode = false;
   },
 
   getClient: () => {
