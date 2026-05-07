@@ -72,6 +72,7 @@ function createMockPrisma() {
   const mockDataGaps = new Map();
   const mockStrategies = new Map();
   const mockRules = new Map();
+  const mockRefreshTokens = new Map();
 
   // ---- helpers ------------------------------------------------------------
 
@@ -240,7 +241,8 @@ function createMockPrisma() {
           tradingRule: makeModel(mockRules),
           dataSource: dataSourceModel,
           ingestionJob: makeModel(mockIngestionJobs),
-          dataGap: makeModel(mockDataGaps)
+          dataGap: makeModel(mockDataGaps),
+          refreshToken: makeModel(mockRefreshTokens)
         });
       }
       // Array-of-promises form
@@ -256,7 +258,8 @@ function createMockPrisma() {
     tradingRule: makeModel(mockRules),
     dataSource: dataSourceModel,
     ingestionJob: makeModel(mockIngestionJobs),
-    dataGap: makeModel(mockDataGaps)
+    dataGap: makeModel(mockDataGaps),
+    refreshToken: makeModel(mockRefreshTokens)
   };
 }
 
