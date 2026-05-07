@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const HistoricalDataIngestor = require('../services/historicalDataIngestor');
 const ParquetWriter = require('../services/parquetWriter');
 const database = require('../utils/database');
@@ -278,7 +279,7 @@ class DataIngestionController {
     const prisma = database.getPrisma();
     return await prisma.ingestionJob.create({
       data: {
-        id: `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `job_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
         pair,
         timeframe,
         exchange: 'binance',

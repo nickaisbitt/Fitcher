@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const { PrismaClient } = require('@prisma/client');
 const logger = require('./logger');
 
@@ -147,7 +148,7 @@ function createMockPrisma() {
       },
       create: async ({ data }) => {
         const record = { createdAt: new Date(), ...data };
-        if (!record.id) record.id = `mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        if (!record.id) record.id = `mock_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
         store.set(record.id, record);
         return record;
       },
@@ -178,7 +179,7 @@ function createMockPrisma() {
           return existing;
         }
         const record = { createdAt: new Date(), ...create };
-        if (!record.id) record.id = `mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        if (!record.id) record.id = `mock_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
         store.set(record.id, record);
         return record;
       }
@@ -193,7 +194,7 @@ function createMockPrisma() {
     },
     create: async ({ data }) => {
       const record = { createdAt: new Date(), ...data };
-      if (!record.id) record.id = `mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      if (!record.id) record.id = `mock_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
       mockUsers.set(record.id, record);
       if (record.email) mockUsers.set(record.email, record);
       return record;

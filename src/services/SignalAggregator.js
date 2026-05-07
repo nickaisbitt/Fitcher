@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const logger = require('../utils/logger');
 
 /**
@@ -342,7 +343,7 @@ class SignalAggregator {
   storeAggregatedSignal(signal) {
     this.recentSignals.push({
       ...signal,
-      id: `agg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      id: `agg_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`
     });
 
     if (this.recentSignals.length > 500) {

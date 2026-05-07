@@ -1,0 +1,4 @@
+## 2024-05-03 - [Insecure Random Number Generation for IDs]
+**Vulnerability:** The application extensively uses `Math.random().toString(36)` to generate IDs for various entities like jobs, alerts, audit logs, and events. `Math.random()` is not a cryptographically secure pseudo-random number generator (CSPRNG), making the generated IDs predictable.
+**Learning:** This widespread pattern suggests a lack of awareness regarding secure ID generation mechanisms across different services in the codebase. Predictable IDs can lead to ID collision and potentially unauthorized access if IDs are used as secure tokens or references.
+**Prevention:** Always use a CSPRNG for generating unique identifiers, tokens, and secrets. In Node.js, prefer `crypto.randomUUID()` for generating UUIDs or `crypto.randomBytes()` for generating secure random strings.

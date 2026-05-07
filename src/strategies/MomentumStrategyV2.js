@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const logger = require('../utils/logger');
 const MultiTimeframeIndicatorState = require('../services/MultiTimeframeIndicatorState');
 
@@ -295,7 +296,7 @@ class MomentumStrategyV2 {
       // Store signal
       this.signals.push({
         ...signal,
-        id: `sig_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        id: `sig_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`
       });
       
       // Trim signal history

@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const ccxt = require('ccxt');
 const logger = require('../utils/logger');
 const database = require('../utils/database');
@@ -69,7 +70,7 @@ class HistoricalDataIngestor {
    * @param {number} priority - Job priority (0=low, 1=normal, 2=high)
    */
   async ingest(pair, timeframe, startDate, endDate = new Date(), priority = 1) {
-    const jobId = `ingest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const jobId = `ingest_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
     
     // Create job record
     const job = await this.createJob(jobId, pair, timeframe, startDate, endDate, priority);
@@ -413,7 +414,7 @@ class HistoricalDataIngestor {
     const prisma = database.getPrisma();
     await prisma.dataGap.create({
       data: {
-        id: `gap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `gap_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
         ...gap,
         detectedAt: new Date()
       }
