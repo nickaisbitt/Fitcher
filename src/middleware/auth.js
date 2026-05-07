@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -30,6 +31,7 @@ const durationToMs = (duration) => {
 
 // JWT validation middleware
 // Checks Authorization header first, then falls back to httpOnly cookie
+// Enforces CSRF validation for state-changing methods if using cookie auth
 const validateJWT = (req, res, next) => {
   const headerToken = req.headers.authorization?.startsWith('Bearer ')
     ? req.headers.authorization.slice(7)
@@ -45,6 +47,20 @@ const validateJWT = (req, res, next) => {
       error: 'Access token required',
       code: 'TOKEN_REQUIRED'
     });
+  }
+
+  // CSRF Protection for state-changing methods
+  if (!headerToken && cookieToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+    const csrfHeader = req.headers['x-csrf-token'];
+    const csrfCookie = req.cookies?.csrf_token;
+
+    if (!csrfHeader || !csrfCookie || csrfHeader !== csrfCookie) {
+      return res.status(403).json({
+        success: false,
+        error: 'Invalid CSRF token',
+        code: 'CSRF_INVALID'
+      });
+    }
   }
 
   try {
@@ -82,10 +98,12 @@ const generateTokens = (userId, email) => {
     { expiresIn: REFRESH_TOKEN_EXPIRES_IN }
   );
 
-  return { accessToken, refreshToken };
+  const csrfToken = crypto.randomBytes(32).toString('hex');
+
+  return { accessToken, refreshToken, csrfToken };
 };
 
-// Set both access and refresh tokens as httpOnly cookies
+// Set both access and refresh tokens as httpOnly cookies, and csrf token as accessible cookie
 const setTokenCookies = (res, tokens) => {
   const accessMaxAge = durationToMs(JWT_EXPIRES_IN);
   const refreshMaxAge = durationToMs(REFRESH_TOKEN_EXPIRES_IN);
@@ -105,9 +123,19 @@ const setTokenCookies = (res, tokens) => {
     path: '/api/auth/refresh',
     maxAge: refreshMaxAge
   });
+
+  if (tokens.csrfToken) {
+    res.cookie('csrf_token', tokens.csrfToken, {
+      httpOnly: false, // Must be readable by frontend JavaScript
+      secure: IS_PRODUCTION,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: accessMaxAge
+    });
+  }
 };
 
-// Clear both token cookies
+// Clear token cookies
 const clearTokenCookies = (res) => {
   res.clearCookie('fitcher_access_token', {
     httpOnly: true,
@@ -121,6 +149,13 @@ const clearTokenCookies = (res) => {
     secure: IS_PRODUCTION,
     sameSite: 'strict',
     path: '/api/auth/refresh'
+  });
+
+  res.clearCookie('csrf_token', {
+    httpOnly: false,
+    secure: IS_PRODUCTION,
+    sameSite: 'strict',
+    path: '/'
   });
 };
 
