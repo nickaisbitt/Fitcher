@@ -1,0 +1,4 @@
+## 2024-05-04 - [Stack Trace Leakage in Error Handler]
+**Vulnerability:** The error handler middleware was using `process.env.NODE_ENV !== 'production'` to determine whether to expose error messages and stack traces to the client. This approach would leak sensitive internal application structures and execution paths in `staging`, `test`, or any other unhandled environment variables, potentially aiding an attacker in reconnaissance.
+**Learning:** Default-allow logic for exposing sensitive error details (`isProduction ? hide : show`) is flawed because it relies on the environment strictly being 'production'. Any misconfiguration or intermediate environment will expose data.
+**Prevention:** Always use default-deny logic (`isDevelopment ? show : hide`) ensuring that debug information is strictly opt-in and restricted to the 'development' environment.

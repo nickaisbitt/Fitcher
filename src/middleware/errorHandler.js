@@ -21,16 +21,16 @@ const errorHandler = (err, req, res, next) => {
   });
 
   const status = err.status || 500;
-  const isProduction = process.env.NODE_ENV === 'production';
+  const isDevelopment = process.env.NODE_ENV === 'development';
 
-  // Never leak stack traces or internal error messages in production
+  // Never leak stack traces or internal error messages in non-development environments
   const response = {
     success: false,
-    error: isProduction ? 'Internal server error' : err.message,
+    error: isDevelopment ? err.message : 'Internal server error',
     requestId: reqId
   };
 
-  if (!isProduction) {
+  if (isDevelopment) {
     response.stack = err.stack;
   }
 
