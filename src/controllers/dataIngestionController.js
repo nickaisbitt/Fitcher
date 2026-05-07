@@ -147,7 +147,7 @@ class DataIngestionController {
 
     const { pair = 'BTC/USD', timeframe = '1h' } = req.query;
 
-    const gaps = await this.ingestor.detectGaps(pair, timeframe);
+    const gaps = await this.ingestor.detectGaps(pair?.toString(), timeframe?.toString());
 
     res.json({
       success: true,
@@ -207,11 +207,11 @@ class DataIngestionController {
       });
     }
 
-    const startDate = new Date(from);
-    const endDate = new Date(to);
+    const startDate = new Date(from.toString());
+    const endDate = new Date(to.toString());
     const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 1000, 1), 10000);
 
-    const candles = await this.parquetWriter.readRange(pair, timeframe, startDate, endDate);
+    const candles = await this.parquetWriter.readRange(pair?.toString(), timeframe?.toString(), startDate, endDate);
 
     // Apply limit
     const limited = candles.slice(0, safeLimit);

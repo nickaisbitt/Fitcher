@@ -277,18 +277,21 @@ class BacktestController {
     const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
     const safePage = Math.max(parseInt(page, 10) || 1, 1);
     const skip = (safePage - 1) * safeLimit;
-    const includeFull = include === 'full';
+    const includeFull = include?.toString() === 'full';
 
     const createdAt = {};
-    if (from) createdAt.gte = new Date(from);
-    if (to) createdAt.lte = new Date(to);
+    if (from) createdAt.gte = new Date(from.toString());
+    if (to) createdAt.lte = new Date(to.toString());
+
+    const safeType = type?.toString().toUpperCase();
+    const safeStrategyType = strategyType?.toString();
 
     const prisma = database.getPrisma();
     const results = await prisma.backtestResult.findMany({
       where: {
         userId: req.user.userId,
-        ...(type ? { type: type.toUpperCase() } : {}),
-        ...(strategyType ? { strategyType } : {}),
+        ...(safeType ? { type: safeType } : {}),
+        ...(safeStrategyType ? { strategyType: safeStrategyType } : {}),
         ...(Object.keys(createdAt).length ? { createdAt } : {})
       },
       orderBy: { createdAt: 'desc' },
@@ -327,7 +330,7 @@ class BacktestController {
   historyById = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { include } = req.query;
-    const includeFull = include === 'full';
+    const includeFull = include?.toString() === 'full';
 
     const prisma = database.getPrisma();
     const result = await prisma.backtestResult.findFirst({

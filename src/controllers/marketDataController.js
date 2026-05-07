@@ -66,7 +66,7 @@ class MarketDataController {
 
     await this.initialize();
 
-    const price = this.aggregator.getPrice(pair, exchange);
+    const price = this.aggregator.getPrice(pair, exchange?.toString());
 
     if (!price) {
       return res.status(404).json({
@@ -133,7 +133,7 @@ class MarketDataController {
 
     await this.initialize();
 
-    const orderBook = this.aggregator.getOrderBook(pair, exchange);
+    const orderBook = this.aggregator.getOrderBook(pair, exchange?.toString());
 
     if (!orderBook || (orderBook.bids.length === 0 && orderBook.asks.length === 0)) {
       return res.status(404).json({
@@ -167,7 +167,7 @@ class MarketDataController {
 
     await this.initialize();
 
-    const trades = this.aggregator.getRecentTrades(pair, exchange, parseInt(limit));
+    const trades = this.aggregator.getRecentTrades(pair, exchange?.toString(), parseInt(limit));
 
     res.json({
       success: true,
