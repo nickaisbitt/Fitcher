@@ -323,8 +323,31 @@ class TradingEngine extends EventEmitter {
             break;
             
           case 'webhook':
-            // TODO: Implement webhook call
-            logger.info('Webhook action:', action.url);
+            try {
+              const fetchOptions = {
+                method: action.method || 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(action.headers || {})
+                }
+              };
+
+              if (action.payload && fetchOptions.method !== 'GET' && fetchOptions.method !== 'HEAD') {
+                fetchOptions.body = JSON.stringify(action.payload);
+              }
+
+              // Add a 5 second timeout to prevent hanging the trading engine
+              fetchOptions.signal = AbortSignal.timeout(5000);
+
+              const response = await fetch(action.url, fetchOptions);
+              if (!response.ok) {
+                logger.warn(`Webhook action failed with status ${response.status}: ${action.url}`);
+              } else {
+                logger.info(`Webhook action delivered successfully: ${action.url}`);
+              }
+            } catch (err) {
+              logger.error(`Error executing webhook action to ${action.url}:`, err);
+            }
             break;
             
           default:

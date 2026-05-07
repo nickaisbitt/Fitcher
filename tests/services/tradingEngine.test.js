@@ -249,6 +249,37 @@ describe('TradingEngine', () => {
       expect(notifications[0].message).toBe('hello');
     });
 
+    it('executes webhook action', async () => {
+      const originalFetch = global.fetch;
+      global.fetch = vi.fn().mockResolvedValue({ ok: true });
+
+      const webhookAction = {
+        type: 'webhook',
+        url: 'https://example.com/webhook',
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer test' },
+        payload: { ruleId: 'r1' }
+      };
+
+      await engine.handleRuleTrigger({
+        ruleName: 'test', ruleId: 'r1',
+        actionResults: [webhookAction]
+      });
+
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(global.fetch).toHaveBeenCalledWith('https://example.com/webhook', expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer test'
+        },
+        body: JSON.stringify({ ruleId: 'r1' }),
+        signal: expect.any(AbortSignal)
+      }));
+
+      global.fetch = originalFetch;
+    });
+
     it('handles unknown action type without throwing', async () => {
       await expect(
         engine.handleRuleTrigger({
