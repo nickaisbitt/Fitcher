@@ -27,12 +27,14 @@ function mockReqResNext(headers = {}) {
 
 // ---------- generateTokens ----------
 describe('generateTokens', () => {
-  it('returns accessToken and refreshToken', () => {
+  it('returns accessToken, refreshToken, and csrfToken', () => {
     const tokens = generateTokens('user-1', 'test@example.com');
     expect(tokens).toHaveProperty('accessToken');
     expect(tokens).toHaveProperty('refreshToken');
+    expect(tokens).toHaveProperty('csrfToken');
     expect(typeof tokens.accessToken).toBe('string');
     expect(typeof tokens.refreshToken).toBe('string');
+    expect(typeof tokens.csrfToken).toBe('string');
   });
 
   it('access token contains userId, email, type access', () => {
@@ -79,11 +81,52 @@ describe('generateTokens', () => {
 
 // ---------- validateJWT ----------
 describe('validateJWT', () => {
-  it('calls next() on valid token', () => {
+  it('calls next() on valid token from header (no CSRF check)', () => {
     const token = jwt.sign({ userId: 'u1', email: 'a@b.com', type: 'access' }, TEST_SECRET, { expiresIn: '1h' });
     const { req, res, next } = mockReqResNext({ authorization: `Bearer ${token}` });
+    req.method = 'POST'; // method doesn't matter if using header token
     validateJWT(req, res, next);
     expect(next).toHaveBeenCalled();
+  });
+
+  it('calls next() on valid token from cookie for GET request (no CSRF check)', () => {
+    const token = jwt.sign({ userId: 'u1', email: 'a@b.com', type: 'access' }, TEST_SECRET, { expiresIn: '1h' });
+    const { req, res, next } = mockReqResNext();
+    req.cookies = { fitcher_access_token: token };
+    req.method = 'GET';
+    validateJWT(req, res, next);
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('calls next() on valid token from cookie for POST request with matching CSRF token', () => {
+    const token = jwt.sign({ userId: 'u1', email: 'a@b.com', type: 'access' }, TEST_SECRET, { expiresIn: '1h' });
+    const { req, res, next } = mockReqResNext();
+    req.cookies = { fitcher_access_token: token, csrf_token: 'valid-csrf-token' };
+    req.headers['x-csrf-token'] = 'valid-csrf-token';
+    req.method = 'POST';
+    validateJWT(req, res, next);
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('returns 403 on valid token from cookie for POST request with missing CSRF header', () => {
+    const token = jwt.sign({ userId: 'u1', email: 'a@b.com', type: 'access' }, TEST_SECRET, { expiresIn: '1h' });
+    const { req, res, next } = mockReqResNext();
+    req.cookies = { fitcher_access_token: token, csrf_token: 'valid-csrf-token' };
+    req.method = 'POST';
+    validateJWT(req, res, next);
+    expect(res._status).toBe(403);
+    expect(res._json.code).toBe('CSRF_INVALID');
+  });
+
+  it('returns 403 on valid token from cookie for POST request with mismatched CSRF header', () => {
+    const token = jwt.sign({ userId: 'u1', email: 'a@b.com', type: 'access' }, TEST_SECRET, { expiresIn: '1h' });
+    const { req, res, next } = mockReqResNext();
+    req.cookies = { fitcher_access_token: token, csrf_token: 'valid-csrf-token' };
+    req.headers['x-csrf-token'] = 'invalid-csrf-token';
+    req.method = 'POST';
+    validateJWT(req, res, next);
+    expect(res._status).toBe(403);
+    expect(res._json.code).toBe('CSRF_INVALID');
   });
 
   it('sets req.user from token payload', () => {

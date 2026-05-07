@@ -1,0 +1,4 @@
+## 2026-05-07 - Double-Submit Cookie CSRF Protection
+**Vulnerability:** The application was missing Cross-Site Request Forgery (CSRF) protection on state-changing API endpoints while using cookie-based authentication.
+**Learning:** The fallback logic in `validateJWT` checking `req.cookies.fitcher_access_token` when the `Authorization: Bearer` token is missing allowed state-changing requests (POST, PUT, DELETE, PATCH) to be processed using just the cookie, which the browser automatically sends. This makes the application vulnerable to CSRF if a user is lured to a malicious site.
+**Prevention:** Implemented a Double-Submit Cookie pattern. We generate a random `csrfToken`, set it as a non-httpOnly cookie `csrf_token`, and require the client to read it and send it back in the `x-csrf-token` header for state-changing requests when utilizing cookie-based authentication. The server then validates that the cookie and header values match.

@@ -160,7 +160,7 @@ describe('clearTokenCookies', () => {
     const res = createMockRes();
     clearTokenCookies(res);
     // Verify res is still functional after clearing
-    expect(res.clearedCookies).toHaveLength(2);
+    expect(res.clearedCookies).toHaveLength(3); // access, refresh, csrf
     expect(() => res.status(200).json({ ok: true })).not.toThrow();
   });
 
@@ -168,7 +168,7 @@ describe('clearTokenCookies', () => {
     const res = createMockRes();
     // No cookies set, clearTokenCookies should still work
     expect(() => clearTokenCookies(res)).not.toThrow();
-    expect(res.clearedCookies).toHaveLength(2);
+    expect(res.clearedCookies).toHaveLength(3); // access, refresh, csrf
   });
 });
 
@@ -327,12 +327,14 @@ describe('validateJWT with cookies', () => {
 // generateTokens still works (5 tests)
 // ═════════════════════════════════════════════════════════════════
 describe('generateTokens', () => {
-  it('returns accessToken and refreshToken', () => {
+  it('returns accessToken, refreshToken, and csrfToken', () => {
     const tokens = generateTokens('user-1', 'test@example.com');
     expect(tokens).toHaveProperty('accessToken');
     expect(tokens).toHaveProperty('refreshToken');
+    expect(tokens).toHaveProperty('csrfToken');
     expect(typeof tokens.accessToken).toBe('string');
     expect(typeof tokens.refreshToken).toBe('string');
+    expect(typeof tokens.csrfToken).toBe('string');
   });
 
   it('access token is valid JWT with correct payload', () => {

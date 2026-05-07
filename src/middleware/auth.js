@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -47,6 +48,20 @@ const validateJWT = (req, res, next) => {
     });
   }
 
+  // CSRF protection for state-changing requests using cookie authentication
+  if (!headerToken && cookieToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+    const csrfCookie = req.cookies?.csrf_token;
+    const csrfHeader = req.headers['x-csrf-token'];
+
+    if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
+      return res.status(403).json({
+        success: false,
+        error: 'Invalid CSRF token',
+        code: 'CSRF_INVALID'
+      });
+    }
+  }
+
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
@@ -82,7 +97,9 @@ const generateTokens = (userId, email) => {
     { expiresIn: REFRESH_TOKEN_EXPIRES_IN }
   );
 
-  return { accessToken, refreshToken };
+  const csrfToken = crypto.randomUUID();
+
+  return { accessToken, refreshToken, csrfToken };
 };
 
 // Set both access and refresh tokens as httpOnly cookies
@@ -105,6 +122,16 @@ const setTokenCookies = (res, tokens) => {
     path: '/api/auth/refresh',
     maxAge: refreshMaxAge
   });
+
+  if (tokens.csrfToken) {
+    res.cookie('csrf_token', tokens.csrfToken, {
+      httpOnly: false, // Must be accessible by client JS
+      secure: IS_PRODUCTION,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: accessMaxAge
+    });
+  }
 };
 
 // Clear both token cookies
@@ -121,6 +148,13 @@ const clearTokenCookies = (res) => {
     secure: IS_PRODUCTION,
     sameSite: 'strict',
     path: '/api/auth/refresh'
+  });
+
+  res.clearCookie('csrf_token', {
+    httpOnly: false,
+    secure: IS_PRODUCTION,
+    sameSite: 'strict',
+    path: '/'
   });
 };
 
