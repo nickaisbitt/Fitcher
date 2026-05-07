@@ -64,86 +64,74 @@ class MeanReversionStrategyV2 {
     state.update(candle);
   }
 
-  async generateSignal(marketData) {
-    try {
-      const { pair, price, timestamp, indicators } = marketData;
-      
-      const state = this.initializePair(pair);
-      
-      // Use provided indicators if available (for tests/legacy compatibility)
-      let snapshot;
-      if (indicators && (indicators.bb || indicators.rsi)) {
-        snapshot = {
-          [this.config.primaryTimeframe]: indicators,
-          overallWarmedUp: true
-        };
-      } else {
-        snapshot = state.getSnapshot();
-      }
-      
-      if (!snapshot.overallWarmedUp && !indicators) {
-        return { action: 'hold', confidence: 0, reason: 'Warming up...', strategy: this.name };
-      }
+  _getSnapshot(state, indicators) {
+    if (indicators && (indicators.bb || indicators.rsi)) {
+      return {
+        [this.config.primaryTimeframe]: indicators,
+        overallWarmedUp: true
+      };
+    }
+    return state.getSnapshot();
+  }
 
-      const primary = snapshot[this.config.primaryTimeframe];
-      
-      const atr = state.getATR(this.config.primaryTimeframe, 14);
-      
-      // Check for exit signals if holding position
-      if (this.position) {
-        // Stop loss
-        if (this.position.stopLoss && price <= this.position.stopLoss) {
-          return { action: 'sell', confidence: 1.0, reason: 'Stop loss hit', strategy: this.name, pair, price };
-        }
-        
-        // Take profit (back to mean)
-        if (price >= primary.bb?.middle) {
-          return { action: 'sell', confidence: 0.9, reason: 'Reached mean (take profit)', strategy: this.name, pair, price };
-        }
-        
-        // Trend Exhaustion: RSI crosses 50 from extreme, or overbought
-        if (primary.rsi > this.config.rsiOverbought || (primary.rsi > 50 && primary.rsi < 70)) {
-          return { action: 'sell', confidence: 0.75, reason: 'RSI exhaustion/overbought', strategy: this.name, pair, price };
-        }
-      }
+  _checkExitSignals(primary, price, pair) {
+    if (!this.position) return null;
 
-      // Check volatility filter
-      const volatility = state.getATR(this.config.primaryTimeframe, 14);
-      if (volatility && volatility / price > this.config.maxVolatility) {
-        return { 
-          action: 'hold', 
-          confidence: 0, 
-          reason: 'Volatility too high',
-          strategy: this.name 
-        };
-      }
+    // Stop loss
+    if (this.position.stopLoss && price <= this.position.stopLoss) {
+      return { action: 'sell', confidence: 1.0, reason: 'Stop loss hit', strategy: this.name, pair, price };
+    }
 
-      // Analyze mean reversion conditions
-      const analysis = this.analyzeMeanReversion(primary, price);
+    // Take profit (back to mean)
+    if (price >= primary.bb?.middle) {
+      return { action: 'sell', confidence: 0.9, reason: 'Reached mean (take profit)', strategy: this.name, pair, price };
+    }
+
+    // Trend Exhaustion: RSI crosses 50 from extreme, or overbought
+    if (primary.rsi > this.config.rsiOverbought || (primary.rsi > 50 && primary.rsi < 70)) {
+      return { action: 'sell', confidence: 0.75, reason: 'RSI exhaustion/overbought', strategy: this.name, pair, price };
+    }
+
+    return null;
+  }
+
+  _checkVolatilityFilter(state, price) {
+    const volatility = state.getATR(this.config.primaryTimeframe, 14);
+    if (volatility && volatility / price > this.config.maxVolatility) {
+      return {
+        action: 'hold',
+        confidence: 0,
+        reason: 'Volatility too high',
+        strategy: this.name
+      };
+    }
+    return null;
+  }
+
+  _evaluateEntrySignal(snapshot, analysis, price) {
+    let action = 'hold';
+    let confidence = analysis.confidence;
+    let reason = analysis.reason;
+
+    // Buy: Price below lower band + RSI oversold
+    if (analysis.oversold && analysis.belowBand) {
+      action = 'buy';
       
-      let action = 'hold';
-      let confidence = analysis.confidence;
-      let reason = analysis.reason;
-      
-      // Buy: Price below lower band + RSI oversold
-      if (analysis.oversold && analysis.belowBand) {
-        action = 'buy';
-        
-        // Increase confidence with multi-timeframe confirmation
-        if (this.config.requireConfirmation) {
-          let confirmationCount = 1;
-          for (const tf of ['15m', '4h']) {
-            if (tf === this.config.primaryTimeframe) continue;
-            const tfSnapshot = snapshot[tf];
-            if (tfSnapshot?.bb && tfSnapshot?.rsi) {
-              const tfAnalysis = this.analyzeMeanReversion(tfSnapshot, price);
-              if (tfAnalysis.oversold) confirmationCount++;
-            }
+      // Increase confidence with multi-timeframe confirmation
+      if (this.config.requireConfirmation) {
+        let confirmationCount = 1;
+        for (const tf of ['15m', '4h']) {
+          if (tf === this.config.primaryTimeframe) continue;
+          const tfSnapshot = snapshot[tf];
+          if (tfSnapshot?.bb && tfSnapshot?.rsi) {
+            const tfAnalysis = this.analyzeMeanReversion(tfSnapshot, price);
+            if (tfAnalysis.oversold) confirmationCount++;
           }
-          confidence *= (confirmationCount / 2); // Boost confidence with confirmation
         }
+        confidence *= (confirmationCount / 2); // Boost confidence with confirmation
       }
-      
+    }
+
     // Sell: Price above upper band + RSI overbought (if holding position)
     if (analysis.overbought && analysis.aboveBand) {
       if (this.position) {
@@ -159,10 +147,41 @@ class MeanReversionStrategyV2 {
       action = 'hold';
     }
 
+    return { action, confidence, reason };
+  }
+
+  async generateSignal(marketData) {
+    try {
+      const { pair, price, timestamp, indicators } = marketData;
+
+      const state = this.initializePair(pair);
+
+      // Use provided indicators if available (for tests/legacy compatibility)
+      const snapshot = this._getSnapshot(state, indicators);
+
+      if (!snapshot.overallWarmedUp && !indicators) {
+        return { action: 'hold', confidence: 0, reason: 'Warming up...', strategy: this.name };
+      }
+
+      const primary = snapshot[this.config.primaryTimeframe];
+
+      // Check for exit signals if holding position
+      const exitSignal = this._checkExitSignals(primary, price, pair);
+      if (exitSignal) return exitSignal;
+
+      // Check volatility filter
+      const volatilityFilter = this._checkVolatilityFilter(state, price);
+      if (volatilityFilter) return volatilityFilter;
+
+      // Analyze mean reversion conditions
+      const analysis = this.analyzeMeanReversion(primary, price);
+
+      const { action, confidence, reason } = this._evaluateEntrySignal(snapshot, analysis, price);
+
       const signal = {
         action,
         confidence,
-        reason: analysis.reason,
+        reason,
         strategy: this.name,
         pair,
         price,
