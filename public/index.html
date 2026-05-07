@@ -1555,8 +1555,18 @@ class MonteCarloSimulator {
   }
 
   _calculateProfitFactor(trades) {
-    const grossProfit = trades.filter(t => (t.pnl || 0) > 0).reduce((sum, t) => sum + Math.abs(t.pnl || 0), 0);
-    const grossLoss = trades.filter(t => (t.pnl || 0) <= 0).reduce((sum, t) => sum + Math.abs(t.pnl || 0), 0);
+    // ⚡ Bolt Optimization: Replaced chained .filter().reduce() with a single-pass loop.
+    // Impact: Avoids multiple O(N) array traversals and garbage collection overhead, converting an O(2N) operation to O(N).
+    let grossProfit = 0;
+    let grossLoss = 0;
+    for (let i = 0; i < trades.length; i++) {
+      const pnl = trades[i].pnl || 0;
+      if (pnl > 0) {
+        grossProfit += pnl;
+      } else {
+        grossLoss -= pnl;
+      }
+    }
     return grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? 10 : 0);
   }
 
@@ -1867,8 +1877,18 @@ class StatisticalTester {
 
     for (let i = 0; i < this.numBootstrap; i++) {
       const sample = this._bootstrapResample(this.trades);
-      const grossProfit = sample.filter(t => (t.pnl || 0) > 0).reduce((sum, t) => sum + Math.abs(t.pnl || 0), 0);
-      const grossLoss = sample.filter(t => (t.pnl || 0) <= 0).reduce((sum, t) => sum + Math.abs(t.pnl || 0), 0);
+      // ⚡ Bolt Optimization: Replaced chained .filter().reduce() with a single-pass loop.
+      // Impact: Significantly reduces GC pressure and speeds up bootstrap iterations from O(2N) to O(N).
+      let grossProfit = 0;
+      let grossLoss = 0;
+      for (let j = 0; j < sample.length; j++) {
+        const pnl = sample[j].pnl || 0;
+        if (pnl > 0) {
+          grossProfit += pnl;
+        } else {
+          grossLoss -= pnl;
+        }
+      }
       factors.push(grossLoss > 0 ? grossProfit / grossLoss : 5);
     }
 
@@ -2084,8 +2104,18 @@ class PerformanceAnalyzer {
   }
 
   _profitFactor() {
-    const grossProfit = this.trades.filter(t => (t.pnl || 0) > 0).reduce((sum, t) => sum + Math.abs(t.pnl || 0), 0);
-    const grossLoss = this.trades.filter(t => (t.pnl || 0) <= 0).reduce((sum, t) => sum + Math.abs(t.pnl || 0), 0);
+    // ⚡ Bolt Optimization: Replaced chained .filter().reduce() with a single-pass loop.
+    // Impact: Reduces algorithmic complexity from O(2N) to O(N) and prevents intermediate array allocation.
+    let grossProfit = 0;
+    let grossLoss = 0;
+    for (let i = 0; i < this.trades.length; i++) {
+      const pnl = this.trades[i].pnl || 0;
+      if (pnl > 0) {
+        grossProfit += pnl;
+      } else {
+        grossLoss -= pnl;
+      }
+    }
     return grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? 10 : 0);
   }
 
@@ -3894,8 +3924,22 @@ function KrakenTradingBot() {
       const totalReturn = ((finalEquity - initialBalance) / initialBalance) * 100;
       const sellTrades = btTrades.filter(t => t.type === 'sell');
       const winRate = sellTrades.length > 0 ? (wins / sellTrades.length) * 100 : 0;
-      const avgWin = wins > 0 ? sellTrades.filter(t => t.pnl > 0).reduce((a, t) => a + t.pnl, 0) / wins : 0;
-      const avgLoss = losses > 0 ? Math.abs(sellTrades.filter(t => t.pnl < 0).reduce((a, t) => a + t.pnl, 0) / losses) : 0;
+
+      // ⚡ Bolt Optimization: Replaced chained .filter().reduce() with a single-pass loop.
+      // Impact: Reduces complexity from O(2N) to O(N) by calculating both win and loss sums simultaneously.
+      let totalWinSum = 0;
+      let totalLossSum = 0;
+      for (let i = 0; i < sellTrades.length; i++) {
+        const pnl = sellTrades[i].pnl;
+        if (pnl > 0) {
+          totalWinSum += pnl;
+        } else {
+          totalLossSum += pnl;
+        }
+      }
+
+      const avgWin = wins > 0 ? totalWinSum / wins : 0;
+      const avgLoss = losses > 0 ? Math.abs(totalLossSum / losses) : 0;
       const profitFactor = avgLoss > 0 ? (avgWin * wins) / (avgLoss * losses) : (avgWin > 0 ? Infinity : 0);
 
       const results = {

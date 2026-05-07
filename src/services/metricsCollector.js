@@ -251,16 +251,27 @@ class MetricsCollector {
       };
     }
     
-    const winning = trades.filter(t => (t.pnl || 0) > 0);
-    const losing = trades.filter(t => (t.pnl || 0) < 0);
-    const totalPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const totalLatency = trades.reduce((sum, t) => sum + (t.latency || 0), 0);
+    // ⚡ Bolt Optimization: Replaced chained .filter().reduce() with a single-pass loop.
+    // Impact: Consolidates 4 separate O(N) array iterations into a single O(N) loop, significantly reducing CPU cycles and memory overhead.
+    let winningCount = 0;
+    let losingCount = 0;
+    let totalPnl = 0;
+    let totalLatency = 0;
+
+    for (let i = 0; i < trades.length; i++) {
+      const pnl = trades[i].pnl || 0;
+      if (pnl > 0) winningCount++;
+      else if (pnl < 0) losingCount++;
+
+      totalPnl += pnl;
+      totalLatency += trades[i].latency || 0;
+    }
     
     return {
       total: trades.length,
-      winning: winning.length,
-      losing: losing.length,
-      winRate: (winning.length / trades.length) * 100,
+      winning: winningCount,
+      losing: losingCount,
+      winRate: (winningCount / trades.length) * 100,
       avgPnl: totalPnl / trades.length,
       totalPnl,
       avgLatency: totalLatency / trades.length,
