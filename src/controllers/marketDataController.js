@@ -191,7 +191,7 @@ class MarketDataController {
     // Get prices from all exchanges
     const prices = [];
     for (const [key, data] of this.aggregator.priceCache) {
-      if (data.type === 'ticker' && data.pair === pair.toUpperCase()) {
+      if (data.type === 'ticker' && data.pair === String(pair).toUpperCase()) {
         prices.push({
           exchange: data.exchange,
           price: data.price,
@@ -225,7 +225,7 @@ class MarketDataController {
     res.json({
       success: true,
       data: {
-        pair: pair.toUpperCase(),
+        pair: String(pair).toUpperCase(),
         vwap,
         bestBid,
         bestAsk,

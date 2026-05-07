@@ -71,9 +71,9 @@ class TradingController {
     const orderData = {
       userId,
       exchange: req.body.exchange,
-      pair: req.body.pair.toUpperCase(),
-      type: req.body.type.toLowerCase(),
-      side: req.body.side.toLowerCase(),
+      pair: String(req.body.pair).toUpperCase(),
+      type: String(req.body.type).toLowerCase(),
+      side: String(req.body.side).toLowerCase(),
       amount: parseFloat(req.body.amount),
       price: req.body.price ? parseFloat(req.body.price) : null,
       stopPrice: req.body.stopPrice ? parseFloat(req.body.stopPrice) : null,
@@ -99,7 +99,7 @@ class TradingController {
     const filters = {
       status: req.query.status,
       exchange: req.query.exchange,
-      pair: req.query.pair?.toUpperCase(),
+      pair: req.query.pair ? String(req.query.pair).toUpperCase() : undefined,
       side: req.query.side,
       type: req.query.type
     };
@@ -257,9 +257,9 @@ class TradingController {
 
     const orderData = {
       exchange: req.body.exchange,
-      pair: req.body.pair?.toUpperCase(),
-      type: req.body.type?.toLowerCase(),
-      side: req.body.side?.toLowerCase(),
+      pair: req.body.pair ? String(req.body.pair).toUpperCase() : undefined,
+      type: req.body.type ? String(req.body.type).toLowerCase() : undefined,
+      side: req.body.side ? String(req.body.side).toLowerCase() : undefined,
       amount: parseFloat(req.body.amount),
       price: req.body.price ? parseFloat(req.body.price) : null,
       stopPrice: req.body.stopPrice ? parseFloat(req.body.stopPrice) : null,
