@@ -118,7 +118,7 @@ class BacktestController {
       pair: normalizedPair
     }));
 
-    const strategy = strategyFactory.create(strategyType, strategyParams);
+    const strategy = strategyFactory.createStrategy(strategyType, strategyParams);
     const backtest = new BacktestEngine(backtestConfig);
     const results = await backtest.run(strategy, historicalData, { enableLogging: false });
 
@@ -192,7 +192,7 @@ class BacktestController {
       pair: normalizedPair
     }));
 
-    const strategy = strategyFactory.create(strategyType, {});
+    const strategy = strategyFactory.createStrategy(strategyType, {});
     const optimizer = new StrategyOptimizer();
 
     const defaultGrid = {

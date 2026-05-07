@@ -21,7 +21,7 @@ class StrategyFactory {
    * @param {string} type - Strategy type
    * @param {Object} config - Strategy configuration
    */
-  create(type, config = {}) {
+  createStrategy(type, config = {}) {
     const StrategyClass = this.strategies.get(type.toLowerCase());
     
     if (!StrategyClass) {
@@ -30,7 +30,7 @@ class StrategyFactory {
     
     try {
       const strategy = new StrategyClass(config);
-      logger.info(`Created ${type} strategy:`, strategy.getConfig());
+      logger.info(`Created ${type} strategy:`, strategy.getConfig ? strategy.getConfig() : strategy.config);
       return strategy;
     } catch (error) {
       logger.error(`Failed to create ${type} strategy:`, error);
@@ -62,7 +62,7 @@ class StrategyFactory {
     return {
       type,
       name: temp.name,
-      defaultConfig: temp.getConfig()
+      defaultConfig: temp.getConfig ? temp.getConfig() : temp.config
     };
   }
 
