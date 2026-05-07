@@ -50,4 +50,10 @@ if (missingVars.length > 0) {
   }
 }
 
+// Security: explicitly forbid wildcard CORS origin
+if (config.FRONTEND_URL === '*') {
+  console.error('SECURITY ERROR: FRONTEND_URL cannot be set to the wildcard "*" origin.');
+  process.exit(1);
+}
+
 module.exports = config;
