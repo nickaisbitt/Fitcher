@@ -118,13 +118,13 @@
 
     <!-- Fitcher API Client -->
     <script src="src/api-client.js"></script>
-    
+
     <script type="text/babel">
         // Make React hooks available globally
         const { useState, useEffect, useCallback, useRef } = React;
 
         // ==================== FITCHER AI TRADING BOT ====================
-        
+
         // API Integration Hook
         const useFitcherAPI = () => {
             const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -3113,7 +3113,7 @@ function KrakenTradingBot() {
   // 2. CORS issues with exchange APIs
   // 3. Duplicate trading logic
   // Configure exchanges in the backend, not frontend
-  
+
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       addLog('Already connected to market data stream', 'warning');
@@ -3246,7 +3246,7 @@ function KrakenTradingBot() {
   // ==================== EXCHANGE SWITCHING DISABLED ====================
   // Direct exchange connections disabled - all data flows through backend
   // Exchange selection now happens in backend configuration
-  
+
   const connectBinance = useCallback(() => {
     addLog('Binance connection disabled - use backend API', 'warning');
     addLog('Configure exchange in backend settings', 'info');
@@ -3364,17 +3364,17 @@ function KrakenTradingBot() {
         const response = await fetch(`${API_BASE}/api/market-data/ticker`, {
           credentials: 'include'
         });
-        
+
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);
         }
-        
+
         const data = await response.json();
 
         // Backend returns normalized format
         Object.entries(data.prices || {}).forEach(([pair, tickerData]) => {
           const price = parseFloat(tickerData.price || 0);
-          
+
           setPrices(prev => ({
             ...prev,
             [pair]: {
@@ -6476,10 +6476,7 @@ function KrakenTradingBot() {
                     <div className="text-sm font-medium mb-3">📊 Position Exposure</div>
                     <div className="space-y-2">
                       {Object.keys(positions).length === 0 ? (
-                        <div className="flex flex-col items-center justify-center text-slate-500 py-6">
-                          <div className="text-2xl mb-2 opacity-70">💼</div>
-                          <div className="text-sm font-medium text-slate-400">No active positions</div>
-                        </div>
+                        <div className="text-slate-500 text-sm">No open positions</div>
                       ) : (
                         Object.entries(positions).map(([pair, pos]) => {
                           const currentPrice = prices[pair] || BASE_PRICES[pair];
@@ -6565,14 +6562,7 @@ function KrakenTradingBot() {
               {activeTab === 'trades' && (
                 <div className="h-64 overflow-y-auto">
                   {trades.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center text-slate-500 py-12">
-                      <div className="text-3xl mb-2 opacity-80">📊</div>
-                      <div className="font-medium text-slate-300">No trades yet</div>
-                      <div className="text-xs mt-1 mb-4 text-center max-w-[200px]">Your trading history will appear here once orders are executed.</div>
-                      {mode === 'paper' && (
-                        <button onClick={runBacktest} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition border border-slate-700 focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none">Run Backtest</button>
-                      )}
-                    </div>
+                    <div className="text-center text-slate-500 py-8">No trades yet</div>
                   ) : (
                     <table className="w-full text-sm">
                       <thead className="text-slate-500 text-xs sticky top-0 bg-slate-800/90">
@@ -6698,12 +6688,7 @@ function KrakenTradingBot() {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center text-slate-500 py-8">
-                     <div className="text-3xl mb-2 opacity-70">🎯</div>
-                     <div className="font-medium text-slate-300">No open position</div>
-                     <div className="text-xs mt-1 mb-4 text-center">Select a pair to fetch data and look for opportunities.</div>
-                     <button onClick={() => fetchHistoricalData(selectedPair, timeframe)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition border border-slate-700 focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none">Fetch {selectedPair} Data</button>
-                  </div>
+                  <div className="text-slate-500 text-center py-6">No open position</div>
                 )}
               </div>
             </div>

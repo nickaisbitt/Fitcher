@@ -1,0 +1,3 @@
+## 2024-05-07 - Actionable Empty States in Dashboards
+**Learning:** Users often encounter "dead ends" in dashboards (e.g., "No trades yet", "No open positions") when first starting or when data is missing. Simple text like "No data" fails to guide the user on *how* to generate that data, leading to a poor onboarding experience and potential abandonment.
+**Action:** Replace passive text blocks with actionable empty states that include a descriptive icon, clear context explaining *why* it is empty, and a direct call-to-action button (like "Fetch Data" or "Run Backtest") to resolve the empty state.

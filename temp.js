@@ -1,130 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fitcher - AI-Powered Crypto Trading</title>
-    <meta name="description" content="Modern Nordic-inspired AI trading bot with multi-exchange support">
-    <meta name="theme-color" content="#0D1B2A">
 
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        nordic: {
-                            dark: '#0D1B2A',
-                            deep: '#1B2838',
-                            blue: '#4A90B8',
-                            pale: '#7FB3D3',
-                            ice: '#B8D4E8',
-                            frost: '#E8F4FC',
-                            white: '#FFFFFF'
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-
-    <!-- React 18 -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-
-    <!-- Babel for JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <style>
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            padding: 0;
-            background: linear-gradient(135deg, #0D1B2A 0%, #1B2838 50%, #0D1B2A 100%);
-            min-height: 100vh;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        }
-        #root { min-height: 100vh; }
-
-        /* Custom scrollbar - Nordic theme */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #1B2838; }
-        ::-webkit-scrollbar-thumb { background: #4A90B8; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #7FB3D3; }
-
-        /* Animations */
-        @keyframes pulse-glow {
-            0%, 100% { box-shadow: 0 0 5px rgba(127, 179, 211, 0.5); }
-            50% { box-shadow: 0 0 20px rgba(127, 179, 211, 0.8); }
-        }
-        .pulse-glow { animation: pulse-glow 2s infinite; }
-
-        @keyframes slide-in {
-            from { transform: translateX(-100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        .slide-in { animation: slide-in 0.3s ease-out; }
-
-        @keyframes frost-shimmer {
-            0% { background-position: -200% center; }
-            100% { background-position: 200% center; }
-        }
-        .frost-shimmer {
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-            background-size: 200% 100%;
-            animation: frost-shimmer 3s infinite;
-        }
-
-        /* Loading spinner - Nordic blue */
-        .loading-spinner {
-            border: 3px solid rgba(127, 179, 211, 0.2);
-            border-top: 3px solid #7FB3D3;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Fitcher logo text */
-        .fitcher-logo {
-            font-weight: 700;
-            font-size: 28px;
-            background: linear-gradient(135deg, #FFFFFF 0%, #B8D4E8 50%, #7FB3D3 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            letter-spacing: -0.5px;
-        }
-    </style>
-</head>
-<body>
-    <div id="root">
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: white;">
-            <img src="logo.svg" alt="Fitcher" width="80" height="80" style="margin-bottom: 16px;">
-            <div class="loading-spinner"></div>
-            <p class="fitcher-logo" style="margin-top: 20px;">Fitcher</p>
-            <p style="margin-top: 8px; font-size: 14px; color: #7FB3D3;">AI-Powered Trading</p>
-            <p style="margin-top: 16px; font-size: 12px; color: #4A90B8;">Initializing...</p>
-        </div>
-    </div>
-
-    <!-- Fitcher API Client -->
-    <script src="src/api-client.js"></script>
-    
-    <script type="text/babel">
         // Make React hooks available globally
         const { useState, useEffect, useCallback, useRef } = React;
 
         // ==================== FITCHER AI TRADING BOT ====================
-        
+
         // API Integration Hook
         const useFitcherAPI = () => {
             const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -3113,7 +2992,7 @@ function KrakenTradingBot() {
   // 2. CORS issues with exchange APIs
   // 3. Duplicate trading logic
   // Configure exchanges in the backend, not frontend
-  
+
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       addLog('Already connected to market data stream', 'warning');
@@ -3246,11 +3125,66 @@ function KrakenTradingBot() {
   // ==================== EXCHANGE SWITCHING DISABLED ====================
   // Direct exchange connections disabled - all data flows through backend
   // Exchange selection now happens in backend configuration
-  
+
   const connectBinance = useCallback(() => {
     addLog('Binance connection disabled - use backend API', 'warning');
     addLog('Configure exchange in backend settings', 'info');
   }, [addLog]);
+
+  const connectCoinbase = useCallback(() => {
+    addLog('Coinbase connection disabled - use backend API', 'warning');
+    addLog('Configure exchange in backend settings', 'info');
+  }, [addLog]);
+          const data = JSON.parse(event.data);
+
+          if (data.e === '24hrTicker') {
+            // Convert BTCUSDT back to BTC/USD format
+            let pair = data.s.replace('USDT', '/USD');
+            pair = pair.slice(0, -4) + '/' + pair.slice(-3);
+
+            const price = parseFloat(data.c);
+            const change24h = parseFloat(data.P);
+
+            setPrices(prev => ({
+              ...prev,
+              [pair]: {
+                price,
+                change24h,
+                high24h: parseFloat(data.h),
+                low24h: parseFloat(data.l),
+                volume: parseFloat(data.q),
+                bid: parseFloat(data.b),
+                ask: parseFloat(data.a)
+              }
+            }));
+
+            // Update price history
+            if (!priceHistoryRef.current[pair]) {
+              priceHistoryRef.current[pair] = [];
+            }
+            priceHistoryRef.current[pair].push(price);
+            if (priceHistoryRef.current[pair].length > 1000) {
+              priceHistoryRef.current[pair].shift();
+            }
+          }
+        } catch (e) {}
+      };
+
+      binanceWsRef.current.onerror = (error) => {
+        addLog('Binance WebSocket error', 'error');
+      };
+
+      binanceWsRef.current.onclose = () => {
+        if (apiStatus === 'connected' && activeExchange === 'binance') {
+          addLog('Binance connection closed, reconnecting...', 'warning');
+          setTimeout(connectBinance, 3000);
+        }
+      };
+    } catch (error) {
+      addLog('Failed to connect to Binance: ' + error.message, 'error');
+      setApiStatus('error');
+    }
+  }, [addLog, playSound, apiStatus, activeExchange]);
 
   // ==================== COINBASE WEBSOCKET API ====================
   const connectCoinbase = useCallback(() => {
@@ -3364,17 +3298,17 @@ function KrakenTradingBot() {
         const response = await fetch(`${API_BASE}/api/market-data/ticker`, {
           credentials: 'include'
         });
-        
+
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);
         }
-        
+
         const data = await response.json();
 
         // Backend returns normalized format
         Object.entries(data.prices || {}).forEach(([pair, tickerData]) => {
           const price = parseFloat(tickerData.price || 0);
-          
+
           setPrices(prev => ({
             ...prev,
             [pair]: {
@@ -4546,8 +4480,9 @@ function KrakenTradingBot() {
 
           <div className="flex items-center gap-3">
             <button
+              aria-label={settings.soundEnabled ? "Mute sound" : "Enable sound"}
               onClick={() => setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
-              className={`p-2 rounded-lg transition ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
+              className={`p-2 rounded-lg transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
             >
               {settings.soundEnabled ? '🔊' : '🔇'}
             </button>
@@ -4555,7 +4490,7 @@ function KrakenTradingBot() {
               <div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`}></div>
               <span className="text-sm text-slate-400">{apiStatus === 'connected' ? 'Kraken Live' : 'Simulated'}</span>
             </div>
-            <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition">⚙️</button>
+            <button aria-label="Toggle settings" onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none">⚙️</button>
           </div>
         </div>
       </header>
@@ -4566,7 +4501,7 @@ function KrakenTradingBot() {
           <div className="bg-slate-800/40 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">⚙️ Settings</h3>
-              <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white">✕</button>
+              <button aria-label="Close settings" onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none rounded">✕</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -4689,12 +4624,12 @@ function KrakenTradingBot() {
                 </select>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs text-slate-500">Stop Loss %</label>
-                    <input type="number" value={settings.stopLoss} onChange={e => setSettings(s => ({ ...s, stopLoss: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
+                    <label htmlFor="stopLoss" className="text-xs text-slate-500">Stop Loss %</label>
+                    <input id="stopLoss" type="number" value={settings.stopLoss} onChange={e => setSettings(s => ({ ...s, stopLoss: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none" />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500">Take Profit %</label>
-                    <input type="number" value={settings.takeProfit} onChange={e => setSettings(s => ({ ...s, takeProfit: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
+                    <label htmlFor="takeProfit" className="text-xs text-slate-500">Take Profit %</label>
+                    <input id="takeProfit" type="number" value={settings.takeProfit} onChange={e => setSettings(s => ({ ...s, takeProfit: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none" />
                   </div>
                 </div>
               </div>
@@ -5697,7 +5632,11 @@ function KrakenTradingBot() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center text-slate-500 py-4">No patterns detected - fetch historical data first</div>
+                      <div className="flex flex-col items-center justify-center text-slate-500 py-6 bg-slate-900/30 rounded-xl border border-slate-800/50">
+                        <div className="text-2xl mb-2 opacity-70">🔍</div>
+                        <div className="font-medium text-slate-400 text-sm">No patterns detected</div>
+                        <button onClick={() => fetchHistoricalData(selectedPair, timeframe)} className="mt-3 text-xs text-cyan-400 hover:text-cyan-300 underline focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none rounded">Fetch historical data first</button>
+                      </div>
                     )}
                   </div>
 
@@ -6884,6 +6823,3 @@ function KrakenTradingBot() {
         // ==================== RENDER APP ====================
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<FitcherApp />);
-    </script>
-</body>
-</html>
