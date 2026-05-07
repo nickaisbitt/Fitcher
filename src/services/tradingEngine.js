@@ -174,109 +174,121 @@ class TradingEngine extends EventEmitter {
       const userId = firstSignal.userId;
       const pair = firstSignal.signal?.pair;
       
-      // 1. Aggregate signals (Consensus)
-      const rawSignals = signals.map(s => ({
-        ...s.signal,
-        strategy: s.strategyName || s.strategyId
-      }));
-      
       const marketData = {
         pair,
         price: firstSignal.signal?.price,
         volatility: await this.getMarketVolatility(pair)
       };
 
-      // 1a. Detect Market Regime and Adjust Weights
-      let snapshot = null;
-      if (this.strategyManager) {
-        const strategy = await this.strategyManager.getStrategy(firstSignal.strategyId);
-        if (strategy?.indicatorStates?.get(pair)) {
-          snapshot = strategy.indicatorStates.get(pair).getSnapshot();
-          const regime = this.regimeDetector.detect(snapshot);
-          const weights = this.regimeDetector.getWeights(regime);
-          
-          logger.info(`Market regime detected: ${regime}. Adjusting weights:`, weights);
-          this.signalAggregator.config.strategyWeights = weights;
-        }
-      }
-      
-      if (snapshot) {
-        marketData.regime = snapshot.trendAlignment; // Pass trend info to aggregator
-      }
-      
-      const aggregated = this.signalAggregator.aggregate(rawSignals, marketData);
-      
-      if (aggregated.action === 'hold') {
-        logger.info(`Signal batch for ${pair} resulted in HOLD: ${aggregated.reason}`);
-        return;
-      }
+      const aggregated = await this._aggregateAndDetectRegime(signals, firstSignal, marketData);
+      if (!aggregated) return;
 
-      // 2. Risk Check
-      const portfolioSummary = await this.positionManager?.getPortfolioSummary(userId) || {};
-      
-      // Safety check: block if portfolio value is unknown
-      if (portfolioSummary.totalValue == null && this.positionManager) {
-        logger.warn(`Cannot determine portfolio value for user ${userId}, blocking trade for safety`);
-        eventBus.publish('trading:signalBlocked', {
-          signal: aggregated,
-          reason: ['Portfolio value unknown — cannot assess risk']
-        });
-        return;
-      }
+      const riskCheck = await this._performRiskChecks(userId, aggregated, marketData);
+      if (!riskCheck || !riskCheck.allowed) return;
 
-      let riskCheck = { allowed: true };
-      if (this.riskManager) {
-        riskCheck = await this.riskManager.checkTrade(
-          aggregated,
-          portfolioSummary,
-          marketData
-        );
-      }
-      
-      if (!riskCheck.allowed) {
-        logger.warn(`Aggregated signal blocked by risk manager:`, riskCheck.reason);
-        eventBus.publish('trading:signalBlocked', {
-          signal: aggregated,
-          reason: riskCheck.reason
-        });
-        return;
-      }
-
-      // 3. Smart Order Routing
-      const routedOrder = await this.orderRouter.routeOrder(
-        riskCheck.adjustedParams || aggregated,
-        marketData
-      );
-
-      // 4. Order Execution
-      if (this.orderManager) {
-        const orderResult = await this.orderManager.createOrder({
-          userId,
-          exchange: firstSignal.signal.exchange || 'kraken',
-          pair: routedOrder.symbol,
-          type: routedOrder.type,
-          side: routedOrder.side,
-          amount: routedOrder.amount,
-          price: routedOrder.price,
-          timeInForce: routedOrder.timeInForce,
-          strategyId: 'aggregated_v2'
-        });
-        
-        if (orderResult.success) {
-          eventBus.publish('trading:orderCreated', {
-            signal: aggregated,
-            order: orderResult.data,
-            routing: routedOrder
-          });
-          
-          // Record trade for strategy performance
-          this.signalAggregator.recordTradeResult(aggregated.id, { pnl: 0 }); // Will update on fill
-        } else {
-          logger.error('Failed to create order from aggregated signal:', orderResult.error);
-        }
-      }
+      await this._routeAndExecuteOrder(userId, aggregated, riskCheck, marketData, firstSignal);
     } catch (error) {
       logger.error('Error processing signal batch:', error);
+    }
+  }
+
+  async _aggregateAndDetectRegime(signals, firstSignal, marketData) {
+    const rawSignals = signals.map(s => ({
+      ...s.signal,
+      strategy: s.strategyName || s.strategyId
+    }));
+
+    const pair = marketData.pair;
+    let snapshot = null;
+
+    if (this.strategyManager) {
+      const strategy = await this.strategyManager.getStrategy(firstSignal.strategyId);
+      if (strategy?.indicatorStates?.get(pair)) {
+        snapshot = strategy.indicatorStates.get(pair).getSnapshot();
+        const regime = this.regimeDetector.detect(snapshot);
+        const weights = this.regimeDetector.getWeights(regime);
+
+        logger.info(`Market regime detected: ${regime}. Adjusting weights:`, weights);
+        this.signalAggregator.config.strategyWeights = weights;
+      }
+    }
+
+    if (snapshot) {
+      marketData.regime = snapshot.trendAlignment;
+    }
+
+    const aggregated = this.signalAggregator.aggregate(rawSignals, marketData);
+
+    if (aggregated.action === 'hold') {
+      logger.info(`Signal batch for ${pair} resulted in HOLD: ${aggregated.reason}`);
+      return null;
+    }
+
+    return aggregated;
+  }
+
+  async _performRiskChecks(userId, aggregated, marketData) {
+    const portfolioSummary = await this.positionManager?.getPortfolioSummary(userId) || {};
+
+    if (portfolioSummary.totalValue == null && this.positionManager) {
+      logger.warn(`Cannot determine portfolio value for user ${userId}, blocking trade for safety`);
+      eventBus.publish('trading:signalBlocked', {
+        signal: aggregated,
+        reason: ['Portfolio value unknown — cannot assess risk']
+      });
+      return { allowed: false };
+    }
+
+    let riskCheck = { allowed: true };
+    if (this.riskManager) {
+      riskCheck = await this.riskManager.checkTrade(
+        aggregated,
+        portfolioSummary,
+        marketData
+      );
+    }
+
+    if (!riskCheck.allowed) {
+      logger.warn(`Aggregated signal blocked by risk manager:`, riskCheck.reason);
+      eventBus.publish('trading:signalBlocked', {
+        signal: aggregated,
+        reason: riskCheck.reason
+      });
+    }
+
+    return riskCheck;
+  }
+
+  async _routeAndExecuteOrder(userId, aggregated, riskCheck, marketData, firstSignal) {
+    const routedOrder = await this.orderRouter.routeOrder(
+      riskCheck.adjustedParams || aggregated,
+      marketData
+    );
+
+    if (this.orderManager) {
+      const orderResult = await this.orderManager.createOrder({
+        userId,
+        exchange: firstSignal.signal.exchange || 'kraken',
+        pair: routedOrder.symbol,
+        type: routedOrder.type,
+        side: routedOrder.side,
+        amount: routedOrder.amount,
+        price: routedOrder.price,
+        timeInForce: routedOrder.timeInForce,
+        strategyId: 'aggregated_v2'
+      });
+
+      if (orderResult.success) {
+        eventBus.publish('trading:orderCreated', {
+          signal: aggregated,
+          order: orderResult.data,
+          routing: routedOrder
+        });
+        
+        this.signalAggregator.recordTradeResult(aggregated.id, { pnl: 0 }); // Will update on fill
+      } else {
+        logger.error('Failed to create order from aggregated signal:', orderResult.error);
+      }
     }
   }
 
