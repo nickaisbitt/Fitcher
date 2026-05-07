@@ -117,6 +117,19 @@ class MultiTimeframeIndicatorState {
   }
 
   /**
+   * Get an individual indicator value for a given timeframe
+   * @param {string} timeframe - The timeframe to query
+   * @param {string} indicatorName - The name of the indicator
+   * @returns {*} - The indicator value or null if not available
+   */
+  getIndicatorValue(timeframe, indicatorName) {
+    const tfData = this.states[timeframe];
+    if (!tfData) return null;
+    const snapshot = tfData.getSnapshot();
+    return snapshot[indicatorName] !== undefined ? snapshot[indicatorName] : null;
+  }
+
+  /**
    * Analyze trend alignment across timeframes
    * Returns: strong_uptrend | uptrend | ranging | downtrend | strong_downtrend
    */
