@@ -197,13 +197,17 @@ class MetricsCollector {
     
     // Trim user equity history
     const cutoff = Date.now() - this.config.retentionPeriod;
-    while (history.length > 0 && history[0].timestamp < cutoff) {
-      history.shift();
+    let spliceIndex = 0;
+    while (spliceIndex < history.length && history[spliceIndex].timestamp < cutoff) {
+      spliceIndex++;
+    }
+    if (spliceIndex > 0) {
+      history.splice(0, spliceIndex);
     }
     
     // Keep max data points
-    while (history.length > this.config.maxDataPoints) {
-      history.shift();
+    if (history.length > this.config.maxDataPoints) {
+      history.splice(0, history.length - this.config.maxDataPoints);
     }
   }
 
@@ -214,12 +218,16 @@ class MetricsCollector {
   trimOldData(dataArray) {
     const cutoff = Date.now() - this.config.retentionPeriod;
     
-    while (dataArray.length > 0 && dataArray[0].timestamp < cutoff) {
-      dataArray.shift();
+    let spliceIndex = 0;
+    while (spliceIndex < dataArray.length && dataArray[spliceIndex].timestamp < cutoff) {
+      spliceIndex++;
+    }
+    if (spliceIndex > 0) {
+      dataArray.splice(0, spliceIndex);
     }
     
-    while (dataArray.length > this.config.maxDataPoints) {
-      dataArray.shift();
+    if (dataArray.length > this.config.maxDataPoints) {
+      dataArray.splice(0, dataArray.length - this.config.maxDataPoints);
     }
   }
 
@@ -229,17 +237,29 @@ class MetricsCollector {
    * @param {number} since - Optional time filter
    */
   getTradeStats(userId = null, since = null) {
-    let trades = this.metrics.trades;
+    const trades = this.metrics.trades;
     
-    if (userId) {
-      trades = trades.filter(t => t.userId === userId);
+    let filteredTrades = [];
+    let winningCount = 0;
+    let losingCount = 0;
+    let totalPnl = 0;
+    let totalLatency = 0;
+
+    for (let i = 0; i < trades.length; i++) {
+      const t = trades[i];
+      if (userId && t.userId !== userId) continue;
+      if (since && t.timestamp < since) continue;
+
+      filteredTrades.push(t);
+      const pnl = t.pnl || 0;
+      if (pnl > 0) winningCount++;
+      else if (pnl < 0) losingCount++;
+
+      totalPnl += pnl;
+      totalLatency += (t.latency || 0);
     }
     
-    if (since) {
-      trades = trades.filter(t => t.timestamp >= since);
-    }
-    
-    if (trades.length === 0) {
+    if (filteredTrades.length === 0) {
       return {
         total: 0,
         winning: 0,
@@ -251,21 +271,16 @@ class MetricsCollector {
       };
     }
     
-    const winning = trades.filter(t => (t.pnl || 0) > 0);
-    const losing = trades.filter(t => (t.pnl || 0) < 0);
-    const totalPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const totalLatency = trades.reduce((sum, t) => sum + (t.latency || 0), 0);
-    
     return {
-      total: trades.length,
-      winning: winning.length,
-      losing: losing.length,
-      winRate: (winning.length / trades.length) * 100,
-      avgPnl: totalPnl / trades.length,
+      total: filteredTrades.length,
+      winning: winningCount,
+      losing: losingCount,
+      winRate: (winningCount / filteredTrades.length) * 100,
+      avgPnl: totalPnl / filteredTrades.length,
       totalPnl,
-      avgLatency: totalLatency / trades.length,
-      byPair: this.groupBy(trades, 'pair'),
-      byStrategy: this.groupBy(trades, 'strategyId')
+      avgLatency: totalLatency / filteredTrades.length,
+      byPair: this.groupBy(filteredTrades, 'pair'),
+      byStrategy: this.groupBy(filteredTrades, 'strategyId')
     };
   }
 
