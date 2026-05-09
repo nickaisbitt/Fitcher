@@ -444,14 +444,14 @@ describe('MarketDataAggregator', () => {
       const key = 'trade:kraken:BTC/USD';
       aggregator.tradeCache.set(key, []);
 
-      for (let i = 0; i < 1005; i++) {
+      for (let i = 0; i < 1205; i++) {
         aggregator.cacheData({
           type: 'trade', exchange: 'kraken', pair: 'BTC/USD',
           price: 50000 + i, volume: 0.1, timestamp: Date.now()
         });
       }
 
-      expect(aggregator.tradeCache.get(key).length).toBeLessThanOrEqual(1000);
+      expect(aggregator.tradeCache.get(key).length).toBeLessThanOrEqual(1200);
     });
   });
 

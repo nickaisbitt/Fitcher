@@ -1,3 +1,4 @@
 ## 2024-05-06 - Replacing O(N²) array operations
 **Learning:** Heavy use of `Array.shift()`, object spreading (`...obj`), and multiple `.reduce()` chained loops within `for` loops in Node.js creates significant GC thrashing and O(N²) complexity loops, forming a substantial bottleneck on performance paths like BacktestEngine execution.
 **Action:** Replace `.shift()` with index pointers, `.splice()` for bulk deletion, and replace `.reduce()`/`.filter()` chaining with single pass loops.
+## 2026-05-09 - [Batch Trim Unit Tests]\n**Learning:** When optimizing cache arrays by replacing continuous O(N) trimming (`Array.shift()`) with threshold-based batch trimming (`Array.splice()`), you must also update the related unit test assertions to test against the new upper threshold limit rather than the strictly trimmed lower bound.\n**Action:** When making batch trim optimizations, search the test suite for the component to ensure length assertions match the trigger threshold.
