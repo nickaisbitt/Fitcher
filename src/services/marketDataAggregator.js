@@ -178,9 +178,9 @@ class MarketDataAggregator extends EventEmitter {
         }
         const trades = this.tradeCache.get(cacheKey);
         trades.push(data);
-        // Keep only last 1000 trades
-        if (trades.length > 1000) {
-          trades.shift();
+        // Batch trim when array grows too large to avoid O(N) shift on every insert
+        if (trades.length > 1500) {
+          trades.splice(0, trades.length - 1000);
         }
         break;
     }

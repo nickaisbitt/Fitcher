@@ -226,17 +226,31 @@ class MetricsCollector {
    * @param {number} since - Optional time filter
    */
   getTradeStats(userId = null, since = null) {
-    let trades = this.metrics.trades;
+    const trades = this.metrics.trades;
     
-    if (userId) {
-      trades = trades.filter(t => t.userId === userId);
+    let filteredTrades = [];
+    let winningCount = 0;
+    let losingCount = 0;
+    let totalPnl = 0;
+    let totalLatency = 0;
+
+    for (let i = 0; i < trades.length; i++) {
+      const t = trades[i];
+      if ((!userId || t.userId === userId) && (!since || t.timestamp >= since)) {
+        filteredTrades.push(t);
+        const pnl = t.pnl || 0;
+        if (pnl > 0) {
+          winningCount++;
+        } else if (pnl < 0) {
+          losingCount++;
+        }
+        totalPnl += pnl;
+        totalLatency += t.latency || 0;
+      }
     }
     
-    if (since) {
-      trades = trades.filter(t => t.timestamp >= since);
-    }
-    
-    if (trades.length === 0) {
+    const length = filteredTrades.length;
+    if (length === 0) {
       return {
         total: 0,
         winning: 0,
@@ -248,32 +262,16 @@ class MetricsCollector {
       };
     }
     
-    let winningCount = 0;
-    let losingCount = 0;
-    let totalPnl = 0;
-    let totalLatency = 0;
-
-    for (const t of trades) {
-      const pnl = t.pnl || 0;
-      if (pnl > 0) {
-        winningCount++;
-      } else if (pnl < 0) {
-        losingCount++;
-      }
-      totalPnl += pnl;
-      totalLatency += t.latency || 0;
-    }
-    
     return {
-      total: trades.length,
+      total: length,
       winning: winningCount,
       losing: losingCount,
-      winRate: (winningCount / trades.length) * 100,
-      avgPnl: totalPnl / trades.length,
+      winRate: (winningCount / length) * 100,
+      avgPnl: totalPnl / length,
       totalPnl,
-      avgLatency: totalLatency / trades.length,
-      byPair: this.groupBy(trades, 'pair'),
-      byStrategy: this.groupBy(trades, 'strategyId')
+      avgLatency: totalLatency / length,
+      byPair: this.groupBy(filteredTrades, 'pair'),
+      byStrategy: this.groupBy(filteredTrades, 'strategyId')
     };
   }
 
@@ -282,24 +280,31 @@ class MetricsCollector {
    * @param {string} type - Latency type
    */
   getLatencyStats(type = null) {
-    let latencies = this.metrics.latency;
+    const latencies = this.metrics.latency;
+    const values = [];
+    let sum = 0;
     
-    if (type) {
-      latencies = latencies.filter(l => l.type === type);
+    for (let i = 0; i < latencies.length; i++) {
+      const l = latencies[i];
+      if (!type || l.type === type) {
+        values.push(l.value);
+        sum += l.value;
+      }
     }
     
-    if (latencies.length === 0) {
+    const length = values.length;
+    if (length === 0) {
       return { avg: 0, min: 0, max: 0, p95: 0, p99: 0 };
     }
     
-    const values = latencies.map(l => l.value).sort((a, b) => a - b);
+    values.sort((a, b) => a - b);
     
     return {
-      avg: values.reduce((a, b) => a + b, 0) / values.length,
+      avg: sum / length,
       min: values[0],
-      max: values[values.length - 1],
-      p95: values[Math.floor(values.length * 0.95)],
-      p99: values[Math.floor(values.length * 0.99)]
+      max: values[length - 1],
+      p95: values[Math.floor(length * 0.95)],
+      p99: values[Math.floor(length * 0.99)]
     };
   }
 
@@ -349,22 +354,23 @@ class MetricsCollector {
   groupBy(array, key) {
     const groups = {};
     
-    for (const item of array) {
+    for (let i = 0; i < array.length; i++) {
+      const item = array[i];
       const value = item[key] || 'unknown';
       if (!groups[value]) {
-        groups[value] = [];
+        groups[value] = { count: 0, totalPnl: 0 };
       }
-      groups[value].push(item);
+      groups[value].count++;
+      groups[value].totalPnl += (item.pnl || 0);
     }
     
     // Calculate stats for each group
     const stats = {};
-    for (const [key, items] of Object.entries(groups)) {
-      const pnls = items.map(i => i.pnl || 0);
-      stats[key] = {
-        count: items.length,
-        totalPnl: pnls.reduce((a, b) => a + b, 0),
-        avgPnl: pnls.reduce((a, b) => a + b, 0) / items.length
+    for (const [groupKey, groupData] of Object.entries(groups)) {
+      stats[groupKey] = {
+        count: groupData.count,
+        totalPnl: groupData.totalPnl,
+        avgPnl: groupData.totalPnl / groupData.count
       };
     }
     

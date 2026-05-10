@@ -1,3 +1,3 @@
-## 2024-05-06 - Replacing O(N²) array operations
-**Learning:** Heavy use of `Array.shift()`, object spreading (`...obj`), and multiple `.reduce()` chained loops within `for` loops in Node.js creates significant GC thrashing and O(N²) complexity loops, forming a substantial bottleneck on performance paths like BacktestEngine execution.
-**Action:** Replace `.shift()` with index pointers, `.splice()` for bulk deletion, and replace `.reduce()`/`.filter()` chaining with single pass loops.
+## 2026-05-10 - Anti-Pattern: Chained Array Operations in Hot Loops
+**Learning:** Found widespread use of chained array methods (`.filter().map().reduce()`) for metrics calculation and O(N) `Array.shift()` for continuous trimming. These create significant garbage collection overhead and O(N^2) complexity in stateful streaming modules.
+**Action:** Replaced chained iterators with single-pass `for` loops, replaced continuous trimming with threshold-based batch `Array.splice()`, and implemented Welford's online algorithm to compute variance dynamically without multiple array iterations.
