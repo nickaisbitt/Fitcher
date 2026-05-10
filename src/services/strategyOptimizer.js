@@ -311,8 +311,22 @@ class StrategyOptimizer {
    */
   stdDev(values) {
     if (values.length < 2) return 0;
-    const avg = this.average(values);
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
+
+    // Use Welford's online algorithm to calculate variance in a single pass
+    let n = 0;
+    let mean = 0;
+    let m2 = 0;
+
+    for (let i = 0; i < values.length; i++) {
+      const v = values[i];
+      n += 1;
+      const delta = v - mean;
+      mean += delta / n;
+      const delta2 = v - mean;
+      m2 += delta * delta2;
+    }
+
+    const variance = n > 1 ? m2 / n : 0;
     return Math.sqrt(variance);
   }
 
