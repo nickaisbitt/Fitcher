@@ -5069,7 +5069,7 @@ function KrakenTradingBot() {
                       <button
                         onClick={runBacktest}
                         disabled={isBacktesting}
-                        className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold disabled:opacity-50 transition hover:from-purple-600 hover:to-pink-600"
+                        className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold disabled:opacity-50 transition hover:from-purple-600 hover:to-pink-600 focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
                       >
                         {isBacktesting ? `⏳ ${backtestProgress}%` : '▶ Run Backtest'}
                       </button>
@@ -5451,7 +5451,7 @@ function KrakenTradingBot() {
                     <button
                       onClick={runOptimizer}
                       disabled={isOptimizing}
-                      className="px-6 py-2 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-xl font-semibold disabled:opacity-50 transition hover:from-violet-600 hover:to-fuchsia-600"
+                      className="px-6 py-2 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-xl font-semibold disabled:opacity-50 transition hover:from-violet-600 hover:to-fuchsia-600 focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
                     >
                       {isOptimizing ? '⏳ Optimizing...' : '▶ Run Optimizer'}
                     </button>
@@ -5497,7 +5497,7 @@ function KrakenTradingBot() {
                     <button
                       onClick={runScanner}
                       disabled={isScanning}
-                      className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold disabled:opacity-50 transition"
+                      className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold disabled:opacity-50 transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
                     >
                       {isScanning ? '⏳ Scanning...' : '🔍 Scan Now'}
                     </button>
@@ -5623,7 +5623,14 @@ function KrakenTradingBot() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center text-slate-500 py-4">No patterns detected - fetch historical data first</div>
+                      <div className="flex flex-col items-center justify-center py-4 text-center">
+                        <div className="text-2xl mb-2">📊</div>
+                        <div className="text-sm font-medium text-slate-400">No patterns detected</div>
+                        <div className="text-xs text-slate-500 mt-1 max-w-[200px] mb-3">Fetch historical data to analyze candlestick patterns.</div>
+                        <button onClick={() => fetchHistoricalData(selectedPair, timeframe)} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none">
+                          Fetch Data
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -5636,7 +5643,7 @@ function KrakenTradingBot() {
                           <span className="text-slate-400">S{i + 1}</span>
                           <span className="font-mono text-emerald-400">${formatPrice(l.price, selectedPair)}</span>
                         </div>
-                      )) : <div className="text-xs text-slate-500">No levels detected</div>}
+                      )) : <div className="flex flex-col items-center justify-center py-2 text-slate-500 text-center"><div className="text-lg mb-1 opacity-60">📉</div><div className="text-[10px] max-w-[120px]">Fetch data to detect support</div></div>}
                     </div>
                     <div className="bg-slate-900/50 rounded-xl p-3">
                       <div className="text-xs text-red-400 mb-2">Resistance Levels</div>
@@ -5645,7 +5652,7 @@ function KrakenTradingBot() {
                           <span className="text-slate-400">R{i + 1}</span>
                           <span className="font-mono text-red-400">${formatPrice(l.price, selectedPair)}</span>
                         </div>
-                      )) : <div className="text-xs text-slate-500">No levels detected</div>}
+                      )) : <div className="flex flex-col items-center justify-center py-2 text-slate-500 text-center"><div className="text-lg mb-1 opacity-60">📈</div><div className="text-[10px] max-w-[120px]">Fetch data to detect resistance</div></div>}
                     </div>
                   </div>
 
@@ -5660,14 +5667,14 @@ function KrakenTradingBot() {
                         <button
                           onClick={fetchNewsSentiment}
                           disabled={isAiAnalyzing}
-                          className="px-3 py-1.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-lg text-xs hover:bg-indigo-500/30 transition disabled:opacity-50"
+                          className="px-3 py-1.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-lg text-xs hover:bg-indigo-500/30 transition disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
                         >
                           📰 News
                         </button>
                         <button
                           onClick={runAiStrategyOptimizer}
                           disabled={isAiAnalyzing || trades.length < 5}
-                          className="px-3 py-1.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded-lg text-xs hover:bg-violet-500/30 transition disabled:opacity-50"
+                          className="px-3 py-1.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded-lg text-xs hover:bg-violet-500/30 transition disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
                         >
                           💡 Improve Strategy
                         </button>
@@ -6210,7 +6217,7 @@ function KrakenTradingBot() {
                       <div className="text-sm text-slate-400">😱 Fear & Greed Index</div>
                       <button
                         onClick={updateFearGreed}
-                        className="px-3 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-xs hover:bg-amber-500/30 transition"
+                        className="px-3 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-xs hover:bg-amber-500/30 transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
                       >
                         🔄 Refresh Live
                       </button>
@@ -6402,7 +6409,11 @@ function KrakenTradingBot() {
                     <div className="text-sm font-medium mb-3">📊 Position Exposure</div>
                     <div className="space-y-2">
                       {Object.keys(positions).length === 0 ? (
-                        <div className="text-slate-500 text-sm">No open positions</div>
+                        <div className="flex flex-col items-center justify-center py-6 text-slate-500 text-sm">
+                          <div className="text-2xl mb-2">📉</div>
+                          <div className="font-medium">No open positions</div>
+                          <div className="text-xs text-slate-600 mt-1">Start trading to open positions.</div>
+                        </div>
                       ) : (
                         Object.entries(positions).map(([pair, pos]) => {
                           const currentPrice = prices[pair] || BASE_PRICES[pair];
@@ -6489,15 +6500,23 @@ function KrakenTradingBot() {
                 <div className="h-64 overflow-y-auto">
                   {trades.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center py-8">
-                      <div className="text-4xl mb-3">📊</div>
+                      <div className="text-5xl mb-3">📈</div>
                       <div className="text-lg font-medium text-slate-300 mb-1">No trades executed yet</div>
-                      <div className="text-sm text-slate-500 mb-4 max-w-xs">Start the trading bot or run a backtest to see your trading history here.</div>
-                      <button
-                        onClick={() => setActiveTab('backtest')}
-                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
-                      >
-                        Run a Backtest
-                      </button>
+                      <div className="text-sm text-slate-500 mb-6 max-w-xs leading-relaxed">Start the trading bot or run a backtest to see your trading history here.</div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setActiveTab('backtest')}
+                          className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none flex items-center gap-2"
+                        >
+                          <span>⚙️</span> Run a Backtest
+                        </button>
+                        <button
+                          onClick={toggleBot}
+                          className="px-5 py-2.5 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none flex items-center gap-2"
+                        >
+                          <span>▶️</span> Start Bot
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <table className="w-full text-sm">
@@ -6624,7 +6643,14 @@ function KrakenTradingBot() {
                     </button>
                   </div>
                 ) : (
-                  <div className="text-slate-500 text-center py-6">No open position</div>
+                  <div className="flex flex-col items-center justify-center py-6 text-slate-500 text-center">
+                    <div className="text-3xl mb-2">📈</div>
+                    <div className="font-medium text-sm text-slate-400 mb-1">No open position</div>
+                    <div className="text-xs text-slate-600 mb-4 max-w-[200px]">Start the bot or execute a trade to open a position.</div>
+                    <button onClick={toggleBot} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none">
+                      {isRunning ? 'Stop Bot' : 'Start Bot'}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -6769,7 +6795,7 @@ function KrakenTradingBot() {
                         <div className="mt-6 pt-6 border-t border-slate-700/50 text-center">
                             <button
                                 onClick={onAuthenticated}
-                                className="text-slate-500 hover:text-slate-400 text-xs"
+                                className="text-slate-500 hover:text-slate-400 text-xs focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
                             >
                                 Continue without account (Demo Mode)
                             </button>

@@ -1,4 +1,3 @@
-
-## 2024-10-25 - Actionable Empty States Drive Feature Discovery
-**Learning:** Empty states in data-heavy components (like the Trades tab) can feel like dead ends if they only contain text like "No data".
-**Action:** Replace text-only empty states with visually appealing, actionable components (icon, clear description, and CTA button) that guide the user to populate the data or discover related features, such as running a backtest to simulate trades.
+## 2026-05-12 - Replace empty states with actionable UI
+**Learning:** Replaced empty textual UI elements like "No open positions" or "No trades executed yet" with more actionable interfaces (icons, explanatory text, and Call-to-Action buttons). Users find the application more guided when there are instructions on how to populate data instead of just seeing "No data". Added standard `focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none` on buttons to ensure keyboard accessibility matches the app's established design pattern.
+**Action:** Always include an empty state design that suggests an action. Ensure all buttons receive focus-visible utility classes.
