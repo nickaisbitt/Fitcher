@@ -165,74 +165,85 @@ class SignalAggregator {
    * Aggregate signals from one side (all buys or all sells)
    */
   aggregateSide(signals, action) {
-    // Get weights for each strategy
-    const weightedSignals = signals.map(signal => {
+    let totalWeight = 0;
+    let sumWeightedConfidence = 0;
+    let sumWeightedSize = 0;
+    const uniqueReasons = new Set();
+    const sources = [];
+    const components = [];
+
+    let stopLoss = action === 'buy' ? 0 : Infinity;
+    let takeProfit = action === 'buy' ? Infinity : 0;
+    let trailingStopsSum = 0;
+    let trailingStopsCount = 0;
+
+    for (let i = 0; i < signals.length; i++) {
+      const signal = signals[i];
       const strategyPerf = this.strategyPerformance.get(signal.strategy);
       const baseWeight = this.config.strategyWeights[signal.strategy] || 1.0;
       const perfWeight = strategyPerf ? strategyPerf.weight : 1.0;
-      
-      return {
-        ...signal,
-        weight: baseWeight * perfWeight
-      };
-    });
+      const weight = baseWeight * perfWeight;
 
-    // Calculate weighted average confidence
-    const totalWeight = weightedSignals.reduce((sum, s) => sum + s.weight, 0);
-    const weightedConfidence = weightedSignals.reduce(
-      (sum, s) => sum + (s.confidence * s.weight), 0
-    ) / totalWeight;
+      totalWeight += weight;
+      sumWeightedConfidence += signal.confidence * weight;
+      sumWeightedSize += (signal.amount || 0) * weight;
 
-    // Combine position sizes (weighted average)
-    const weightedSize = weightedSignals.reduce(
-      (sum, s) => sum + ((s.amount || 0) * s.weight), 0
-    ) / totalWeight;
+      uniqueReasons.add(`${signal.strategy}: ${signal.reason}`);
+      sources.push(signal.strategy);
 
-    // Combine reasons
-    const allReasons = weightedSignals.map(s => `${s.strategy}: ${s.reason}`);
-    const uniqueReasons = [...new Set(allReasons)];
+      components.push({
+        strategy: signal.strategy,
+        confidence: signal.confidence,
+        reason: signal.reason
+      });
 
-    // Select best stops (most conservative)
-    const stopLosses = weightedSignals
-      .filter(s => s.stopLoss)
-      .map(s => s.stopLoss);
-    const takeProfits = weightedSignals
-      .filter(s => s.takeProfit)
-      .map(s => s.takeProfit);
+      if (signal.stopLoss !== undefined) {
+        if (action === 'buy') {
+          if (signal.stopLoss > stopLoss) stopLoss = signal.stopLoss;
+        } else {
+          if (signal.stopLoss < stopLoss) stopLoss = signal.stopLoss;
+        }
+      }
 
-    const stopLoss = action === 'buy' 
-      ? Math.max(...stopLosses, 0)  // Highest stop for buys
-      : Math.min(...stopLosses, Infinity); // Lowest stop for sells
-    
-    const takeProfit = action === 'buy'
-      ? Math.min(...takeProfits, Infinity)  // Lowest target for buys
-      : Math.max(...takeProfits, 0);        // Highest target for sells
+      if (signal.takeProfit !== undefined) {
+        if (action === 'buy') {
+          if (signal.takeProfit < takeProfit) takeProfit = signal.takeProfit;
+        } else {
+          if (signal.takeProfit > takeProfit) takeProfit = signal.takeProfit;
+        }
+      }
+
+      if (signal.trailingStop !== undefined) {
+        trailingStopsSum += signal.trailingStop;
+        trailingStopsCount++;
+      }
+    }
+
+    const weightedConfidence = totalWeight > 0 ? sumWeightedConfidence / totalWeight : 0;
+    const weightedSize = totalWeight > 0 ? sumWeightedSize / totalWeight : 0;
+    const trailingStop = trailingStopsCount > 0 ? trailingStopsSum / trailingStopsCount : undefined;
 
     return {
       action,
       confidence: Math.min(weightedConfidence, 0.95),
-      reason: `${signals.length} strategies agree: ${uniqueReasons.slice(0, 2).join('; ')}`,
-      sources: signals.map(s => s.strategy),
+      reason: `${signals.length} strategies agree: ${Array.from(uniqueReasons).slice(0, 2).join('; ')}`,
+      sources,
       amount: Math.min(weightedSize, 0.20), // Cap at 20%
       price: signals[0].price, // Use first signal's price
       pair: signals[0].pair,
       timestamp: Date.now(),
       
       // Combined risk parameters
-      stopLoss: stopLoss > 0 ? stopLoss : undefined,
-      takeProfit: takeProfit < Infinity ? takeProfit : undefined,
-      trailingStop: this.selectTrailingStop(weightedSignals),
+      stopLoss: (action === 'buy' ? stopLoss > 0 : stopLoss < Infinity) ? stopLoss : undefined,
+      takeProfit: (action === 'buy' ? takeProfit < Infinity : takeProfit > 0) ? takeProfit : undefined,
+      trailingStop,
       
       // Execution
       urgency: weightedConfidence > 0.85 ? 'high' : 'normal',
       orderType: weightedConfidence > 0.85 ? 'market' : 'limit',
       
       // Component signals
-      components: signals.map(s => ({
-        strategy: s.strategy,
-        confidence: s.confidence,
-        reason: s.reason
-      }))
+      components
     };
   }
 
@@ -345,8 +356,8 @@ class SignalAggregator {
       id: `agg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     });
 
-    if (this.recentSignals.length > 500) {
-      this.recentSignals.shift();
+    if (this.recentSignals.length > 1000) {
+      this.recentSignals.splice(0, 500);
     }
   }
 
