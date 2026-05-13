@@ -92,7 +92,11 @@ class IndicatorState {
     state.sum += close;
 
     if (state.buffer.length > period) {
-      state.sum -= state.buffer.shift();
+      state.sum -= state.buffer[state.buffer.length - 1 - period];
+
+      if (state.buffer.length > period + 100) {
+        state.buffer.splice(0, 100);
+      }
     }
 
     state.value = state.buffer.length >= period ? state.sum / period : null;
@@ -137,9 +141,13 @@ class IndicatorState {
     s.sumSq += close * close;
 
     if (s.buffer.length > s.period) {
-      const removed = s.buffer.shift();
+      const removed = s.buffer[s.buffer.length - 1 - s.period];
       s.sum -= removed;
       s.sumSq -= removed * removed;
+
+      if (s.buffer.length > s.period + 100) {
+        s.buffer.splice(0, 100);
+      }
     }
 
     if (s.buffer.length >= s.period) {

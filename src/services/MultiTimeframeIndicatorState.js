@@ -56,16 +56,16 @@ class MultiTimeframeIndicatorState {
           this.candleBuffers[tf].push(higherTfCandle);
           
           // Keep buffer size manageable (last 100 candles)
-          if (this.candleBuffers[tf].length > 100) {
-            this.candleBuffers[tf].shift();
+          if (this.candleBuffers[tf].length > 200) {
+            this.candleBuffers[tf].splice(0, 100);
           }
         }
       }
     }
     
     // Keep 15m buffer manageable
-    if (this.candleBuffers['15m'].length > 100) {
-      this.candleBuffers['15m'].shift();
+    if (this.candleBuffers['15m'].length > 200) {
+      this.candleBuffers['15m'].splice(0, 100);
     }
   }
 
