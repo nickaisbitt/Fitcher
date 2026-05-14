@@ -4775,7 +4775,7 @@ function KrakenTradingBot() {
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium transition ${activeTab === tab ? 'bg-cyan-500 text-slate-900' : 'bg-slate-800/50 hover:bg-slate-700/50'} ${tab === 'ai' || tab === 'evolution' ? 'border border-purple-500/30' : ''} ${tab === 'pro' || tab === 'market' ? 'border border-amber-500/30' : ''} ${tab === 'risk' ? 'border border-red-500/30' : ''} ${tab === 'simulate' ? 'border border-cyan-500/30' : ''}`}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none ${activeTab === tab ? 'bg-cyan-500 text-slate-900' : 'bg-slate-800/50 hover:bg-slate-700/50'} ${tab === 'ai' || tab === 'evolution' ? 'border border-purple-500/30' : ''} ${tab === 'pro' || tab === 'market' ? 'border border-amber-500/30' : ''} ${tab === 'risk' ? 'border border-red-500/30' : ''} ${tab === 'simulate' ? 'border border-cyan-500/30' : ''}`}
                 >
                   {tab === 'ai' ? '🧠 AI' : tab === 'evolution' ? '🧬 Evolution' : tab === 'pro' ? '🏆 Pro' : tab === 'market' ? '📊 Market' : tab === 'risk' ? '🛡️ Risk' : tab === 'simulate' ? '🎲 Simulate' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
@@ -5014,8 +5014,9 @@ function KrakenTradingBot() {
                     {!backtestConfig.useCustomDate ? (
                       <div className="flex items-center gap-4">
                         <div>
-                          <label className="text-xs text-slate-500">Hours back</label>
+                          <label htmlFor="hours-back" className="text-xs text-slate-500">Hours back</label>
                           <input
+                            id="hours-back"
                             type="number"
                             value={backtestConfig.hoursBack}
                             onChange={e => setBacktestConfig(c => ({ ...c, hoursBack: parseInt(e.target.value) || 36 }))}
@@ -5038,8 +5039,9 @@ function KrakenTradingBot() {
                     ) : (
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="text-xs text-slate-500">Start Date/Time</label>
+                          <label htmlFor="start-date" className="text-xs text-slate-500">Start Date/Time</label>
                           <input
+                            id="start-date"
                             type="datetime-local"
                             value={backtestConfig.customStartDate}
                             onChange={e => setBacktestConfig(c => ({ ...c, customStartDate: e.target.value }))}
@@ -5047,8 +5049,9 @@ function KrakenTradingBot() {
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-slate-500">End Date/Time (optional)</label>
+                          <label htmlFor="end-date" className="text-xs text-slate-500">End Date/Time (optional)</label>
                           <input
+                            id="end-date"
                             type="datetime-local"
                             value={backtestConfig.customEndDate}
                             onChange={e => setBacktestConfig(c => ({ ...c, customEndDate: e.target.value }))}
@@ -5069,9 +5072,17 @@ function KrakenTradingBot() {
                       <button
                         onClick={runBacktest}
                         disabled={isBacktesting}
-                        className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold disabled:opacity-50 transition hover:from-purple-600 hover:to-pink-600"
+                        className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-semibold disabled:opacity-50 transition hover:from-purple-600 hover:to-pink-600 flex items-center justify-center gap-2"
                       >
-                        {isBacktesting ? `⏳ ${backtestProgress}%` : '▶ Run Backtest'}
+                        {isBacktesting ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>{backtestProgress}%</span>
+                          </>
+                        ) : '▶ Run Backtest'}
                       </button>
                     </div>
 
@@ -5206,9 +5217,17 @@ function KrakenTradingBot() {
                         setIsSimulating(false);
                       }}
                       disabled={isSimulating || trades.length < 10}
-                      className={`px-4 py-2 rounded-xl text-sm font-medium ${isSimulating ? 'bg-slate-600 cursor-not-allowed' : 'bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600'}`}
+                      className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 ${isSimulating ? 'bg-slate-600 cursor-not-allowed' : 'bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600'}`}
                     >
-                      {isSimulating ? '⏳ Running...' : '▶ Run Full Analysis'}
+                      {isSimulating ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4 text-slate-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span>Running...</span>
+                        </>
+                      ) : '▶ Run Full Analysis'}
                     </button>
                   </div>
 
@@ -5217,8 +5236,9 @@ function KrakenTradingBot() {
                     <div className="text-sm font-medium mb-3">⚙️ Simulation Parameters</div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
-                        <label className="text-xs text-slate-400">Monte Carlo Iterations</label>
+                        <label htmlFor="monte-carlo-iters" className="text-xs text-slate-400">Monte Carlo Iterations</label>
                         <select
+                          id="monte-carlo-iters"
                           value={simulationConfig.monteCarloIterations}
                           onChange={e => setSimulationConfig(s => ({ ...s, monteCarloIterations: parseInt(e.target.value) }))}
                           className="w-full bg-slate-800 rounded px-2 py-1.5 text-sm mt-1"
@@ -5230,8 +5250,9 @@ function KrakenTradingBot() {
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400">Confidence Level</label>
+                        <label htmlFor="confidence-level" className="text-xs text-slate-400">Confidence Level</label>
                         <select
+                          id="confidence-level"
                           value={simulationConfig.confidenceLevel}
                           onChange={e => setSimulationConfig(s => ({ ...s, confidenceLevel: parseInt(e.target.value) }))}
                           className="w-full bg-slate-800 rounded px-2 py-1.5 text-sm mt-1"
@@ -5523,7 +5544,14 @@ function KrakenTradingBot() {
                   )}
 
                   {scanResults.length === 0 && !isScanning && (
-                    <div className="text-center text-slate-500 py-8">Click "Scan Now" to find trading signals</div>
+                    <div className="flex flex-col items-center justify-center py-12 text-center bg-slate-800/30 rounded-xl border border-slate-700/50">
+                      <div className="text-4xl mb-4">🔭</div>
+                      <h3 className="text-lg font-medium text-slate-300 mb-2">No Active Scans</h3>
+                      <p className="text-sm text-slate-400 max-w-md mb-6">Discover new trading opportunities across all available pairs. Run a multi-pair scan to find potential entries based on your strategy.</p>
+                      <button onClick={runScanner} className="px-6 py-2.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 rounded-xl font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none flex items-center gap-2">
+                        <span>🔍</span> Start Market Scan
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -5623,7 +5651,14 @@ function KrakenTradingBot() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center text-slate-500 py-4">No patterns detected - fetch historical data first</div>
+                      <div className="flex flex-col items-center justify-center py-6 text-center">
+                        <div className="text-3xl mb-3">🕯️</div>
+                        <h4 className="text-sm font-medium text-slate-300 mb-1">No Patterns Found</h4>
+                        <p className="text-xs text-slate-500 max-w-[200px] mb-4">We need historical data to detect candlestick patterns like Dojis or Engulfing bars.</p>
+                        <button onClick={() => fetchHistoricalData(selectedPair, timeframe)} className="px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 rounded-lg text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none flex items-center gap-2">
+                          <span>📥</span> Fetch Data
+                        </button>
+                      </div>
                     )}
                   </div>
 
