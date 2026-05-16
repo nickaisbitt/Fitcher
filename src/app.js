@@ -62,6 +62,10 @@ let tradingEngine = null;
 
 // Create Express app
 const app = express();
+
+// Trust proxy for rate limiting (assumes 1 reverse proxy e.g., Nginx, ALB)
+app.set('trust proxy', 1);
+
 const server = createServer(app);
 
 // Configure Socket.io
