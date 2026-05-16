@@ -580,8 +580,19 @@ class PaperTradingEngine {
   calculateSharpeRatio(returns) {
     if (returns.length < 2) return 0;
     
-    const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
-    const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+    const len = returns.length;
+    let sum = 0;
+    for (let i = 0; i < len; i++) {
+      sum += returns[i];
+    }
+    const avgReturn = sum / len;
+
+    let sqSum = 0;
+    for (let i = 0; i < len; i++) {
+      const diff = returns[i] - avgReturn;
+      sqSum += diff * diff;
+    }
+    const variance = sqSum / len;
     const stdDev = Math.sqrt(variance);
     
     if (stdDev === 0) return 0;

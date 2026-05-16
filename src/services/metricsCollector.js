@@ -288,18 +288,27 @@ class MetricsCollector {
       latencies = latencies.filter(l => l.type === type);
     }
     
-    if (latencies.length === 0) {
+    const len = latencies.length;
+    if (len === 0) {
       return { avg: 0, min: 0, max: 0, p95: 0, p99: 0 };
     }
     
-    const values = latencies.map(l => l.value).sort((a, b) => a - b);
+    // Performance optimization: TypedArray prevents large GC overhead
+    const values = new Float64Array(len);
+    let sum = 0;
+    for (let i = 0; i < len; i++) {
+      const val = latencies[i].value;
+      values[i] = val;
+      sum += val;
+    }
+    values.sort();
     
     return {
-      avg: values.reduce((a, b) => a + b, 0) / values.length,
+      avg: sum / len,
       min: values[0],
-      max: values[values.length - 1],
-      p95: values[Math.floor(values.length * 0.95)],
-      p99: values[Math.floor(values.length * 0.99)]
+      max: values[len - 1],
+      p95: values[Math.floor(len * 0.95)],
+      p99: values[Math.floor(len * 0.99)]
     };
   }
 
