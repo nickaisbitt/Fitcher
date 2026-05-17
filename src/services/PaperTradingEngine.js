@@ -565,10 +565,13 @@ class PaperTradingEngine {
     }
     
     const values = Array.from(dailyValues.values());
-    const returns = [];
+    if (values.length < 2) return new Float64Array(0);
+
+    const returnsLen = values.length - 1;
+    const returns = new Float64Array(returnsLen);
     
     for (let i = 1; i < values.length; i++) {
-      returns.push((values[i] - values[i-1]) / values[i-1]);
+      returns[i - 1] = (values[i] - values[i-1]) / values[i-1];
     }
     
     return returns;
@@ -578,10 +581,21 @@ class PaperTradingEngine {
    * Calculate Sharpe ratio
    */
   calculateSharpeRatio(returns) {
-    if (returns.length < 2) return 0;
+    const len = returns.length;
+    if (len < 2) return 0;
     
-    const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
-    const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+    let sum = 0;
+    for (let i = 0; i < len; i++) {
+      sum += returns[i];
+    }
+    const avgReturn = sum / len;
+
+    let sumSqDiff = 0;
+    for (let i = 0; i < len; i++) {
+      const diff = returns[i] - avgReturn;
+      sumSqDiff += diff * diff;
+    }
+    const variance = sumSqDiff / len;
     const stdDev = Math.sqrt(variance);
     
     if (stdDev === 0) return 0;
