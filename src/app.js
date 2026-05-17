@@ -67,7 +67,13 @@ const server = createServer(app);
 // Configure Socket.io
 const io = new Server(server, {
   cors: {
-    origin: config.FRONTEND_URL,
+    origin: (origin, callback) => {
+      if (!origin || origin === config.FRONTEND_URL) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    },
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -79,7 +85,13 @@ app.set('io', io);
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: config.FRONTEND_URL,
+  origin: (origin, callback) => {
+    if (!origin || origin === config.FRONTEND_URL) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
