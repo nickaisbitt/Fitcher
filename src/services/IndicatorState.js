@@ -91,8 +91,14 @@ class IndicatorState {
     state.buffer.push(close);
     state.sum += close;
 
+    // Subtract the element falling out of the window
     if (state.buffer.length > period) {
-      state.sum -= state.buffer.shift();
+      state.sum -= state.buffer[state.buffer.length - 1 - period];
+    }
+
+    // Batch trim to avoid O(N) shift per candle
+    if (state.buffer.length > period * 2) {
+      state.buffer.splice(0, period);
     }
 
     state.value = state.buffer.length >= period ? state.sum / period : null;
@@ -136,8 +142,9 @@ class IndicatorState {
     s.sum += close;
     s.sumSq += close * close;
 
+    // Subtract the element falling out of the window
     if (s.buffer.length > s.period) {
-      const removed = s.buffer.shift();
+      const removed = s.buffer[s.buffer.length - 1 - s.period];
       s.sum -= removed;
       s.sumSq -= removed * removed;
     }
@@ -153,6 +160,11 @@ class IndicatorState {
       };
     } else {
       s.value = null;
+    }
+
+    // Batch trim to avoid O(N) shift per candle
+    if (s.buffer.length > s.period * 2) {
+      s.buffer.splice(0, s.period);
     }
   }
 
