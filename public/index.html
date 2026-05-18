@@ -4481,7 +4481,7 @@ function KrakenTradingBot() {
               <div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`}></div>
               <span className="text-sm text-slate-400">{apiStatus === 'connected' ? 'Kraken Live' : 'Simulated'}</span>
             </div>
-            <button aria-label="Settings" onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none">⚙️</button>
+            <button aria-label="Settings" aria-expanded={showSettings} onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none">⚙️</button>
           </div>
         </div>
       </header>
@@ -4630,7 +4630,7 @@ function KrakenTradingBot() {
                 <div className="text-sm text-slate-400 font-medium">Risk Management</div>
                 <div>
                   <label className="text-xs text-slate-500">Trade Size: {settings.tradeSize}%</label>
-                  <input type="range" min="10" max="100" step="5" value={settings.tradeSize} onChange={e => setSettings(s => ({ ...s, tradeSize: +e.target.value }))} className="w-full" />
+                  <input type="range" min="10" max="100" step="5" value={settings.tradeSize} title={`Trade Size: ${settings.tradeSize}%`} onChange={e => setSettings(s => ({ ...s, tradeSize: +e.target.value }))} className="w-full focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none rounded-lg" />
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={settings.trailingStop} onChange={e => setSettings(s => ({ ...s, trailingStop: e.target.checked }))} className="rounded" />
@@ -6402,7 +6402,11 @@ function KrakenTradingBot() {
                     <div className="text-sm font-medium mb-3">📊 Position Exposure</div>
                     <div className="space-y-2">
                       {Object.keys(positions).length === 0 ? (
-                        <div className="text-slate-500 text-sm">No open positions</div>
+                        <div className="flex flex-col items-center justify-center py-4 text-slate-500">
+                          <div className="text-2xl mb-1 opacity-50">📦</div>
+                          <div className="font-medium">No open positions</div>
+                          <div className="text-xs mt-1 text-center">Execute trades to see exposure</div>
+                        </div>
                       ) : (
                         Object.entries(positions).map(([pair, pos]) => {
                           const currentPrice = prices[pair] || BASE_PRICES[pair];
@@ -6624,7 +6628,11 @@ function KrakenTradingBot() {
                     </button>
                   </div>
                 ) : (
-                  <div className="text-slate-500 text-center py-6">No open position</div>
+                  <div className="flex flex-col items-center justify-center py-6 text-slate-500">
+                    <div className="text-3xl mb-2 opacity-50">📉</div>
+                    <div className="font-medium text-slate-400">No active position</div>
+                    <div className="text-xs mt-1 text-center">Execute a buy or sell order above to open a position.</div>
+                  </div>
                 )}
               </div>
             </div>
