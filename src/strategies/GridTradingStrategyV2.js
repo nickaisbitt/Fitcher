@@ -247,10 +247,15 @@ class GridTradingStrategyV2 {
   }
 
   getPerformance() {
+    let activeGridsCount = 0;
+    for (const a of this.activePositions.values()) {
+      activeGridsCount += a.length;
+    }
+
     return {
       name: this.name,
       totalSignals: this.signals.length,
-      activeGrids: Array.from(this.activePositions.values()).reduce((sum, a) => sum + a.length, 0)
+      activeGrids: activeGridsCount
     };
   }
 

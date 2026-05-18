@@ -197,17 +197,24 @@ class PositionManager {
       }
       
       for (const position of positions) {
-        // Filter trades by period
-        const relevantTrades = cutoffDate 
-          ? position.trades.filter(t => new Date(t.timestamp) >= cutoffDate)
-          : position.trades;
+        let realizedFromTrades = 0;
+        let feesFromTrades = 0;
+        let tradesCount = 0;
         
-        const realizedFromTrades = relevantTrades
-          .filter(t => t.type === 'sell')
-          .reduce((sum, t) => sum + (t.realizedPnL || 0), 0);
-        
-        const feesFromTrades = relevantTrades
-          .reduce((sum, t) => sum + (t.fee || 0), 0);
+        // Use a single loop to calculate realized PnL, fees and valid trade counts to avoid array filter/reduce overhead
+        for (let i = 0; i < position.trades.length; i++) {
+          const t = position.trades[i];
+          if (cutoffDate && new Date(t.timestamp) < cutoffDate) {
+            continue;
+          }
+
+          tradesCount++;
+          feesFromTrades += (t.fee || 0);
+
+          if (t.type === 'sell') {
+            realizedFromTrades += (t.realizedPnL || 0);
+          }
+        }
         
         totalRealized += realizedFromTrades;
         totalFees += feesFromTrades;
@@ -224,7 +231,7 @@ class PositionManager {
         
         assetPnL[position.asset].realized += realizedFromTrades;
         assetPnL[position.asset].fees += feesFromTrades;
-        assetPnL[position.asset].trades += relevantTrades.length;
+        assetPnL[position.asset].trades += tradesCount;
       }
       
       return {
@@ -298,10 +305,14 @@ class PositionManager {
       }
       
       // Calculate allocation percentages
-      const totalValue = metrics.reduce((sum, m) => sum + m.currentValue, 0);
-      metrics.forEach(m => {
+      let totalValue = 0;
+      for (const m of metrics) {
+        totalValue += m.currentValue;
+      }
+
+      for (const m of metrics) {
         m.allocation = totalValue > 0 ? (m.currentValue / totalValue) * 100 : 0;
-      });
+      }
       
       return metrics.sort((a, b) => b.currentValue - a.currentValue);
     } catch (error) {
