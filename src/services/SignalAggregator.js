@@ -340,13 +340,15 @@ class SignalAggregator {
    * Store aggregated signal in history
    */
   storeAggregatedSignal(signal) {
+    // Revert crypto.randomBytes as it is slower for non-cryptographic ID generation and creates a require bottleneck
     this.recentSignals.push({
       ...signal,
       id: `agg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     });
 
-    if (this.recentSignals.length > 500) {
-      this.recentSignals.shift();
+    if (this.recentSignals.length > 600) {
+      // Bolt: Replace O(N) shift() with batch trim
+      this.recentSignals.splice(0, this.recentSignals.length - 500);
     }
   }
 

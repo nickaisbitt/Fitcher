@@ -264,14 +264,20 @@ class SmartOrderRouter {
       
       // Calculate returns
       const returns = [];
+      let sum = 0;
       for (let i = 1; i < candles.length; i++) {
         const ret = (candles[i].close - candles[i-1].close) / candles[i-1].close;
         returns.push(ret);
+        sum += ret;
       }
       
-      // Calculate standard deviation
-      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-      const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+      // Calculate standard deviation (Bolt: O(N) 2-pass loop)
+      const mean = sum / returns.length;
+      let sumSqDiff = 0;
+      for (let i = 0; i < returns.length; i++) {
+        sumSqDiff += (returns[i] - mean) * (returns[i] - mean);
+      }
+      const variance = sumSqDiff / returns.length;
       const stdDev = Math.sqrt(variance);
       
       return stdDev;
@@ -291,8 +297,15 @@ class SmartOrderRouter {
       const orderBook = await this.priceFeed.getOrderBook(pair);
       if (!orderBook) return 'medium';
       
-      const totalBidVolume = orderBook.bids.reduce((sum, bid) => sum + bid[1], 0);
-      const totalAskVolume = orderBook.asks.reduce((sum, ask) => sum + ask[1], 0);
+      // Bolt: O(N) loops instead of reduce
+      let totalBidVolume = 0;
+      for (let i = 0; i < orderBook.bids.length; i++) {
+        totalBidVolume += orderBook.bids[i][1];
+      }
+      let totalAskVolume = 0;
+      for (let i = 0; i < orderBook.asks.length; i++) {
+        totalAskVolume += orderBook.asks[i][1];
+      }
       const totalVolume = totalBidVolume + totalAskVolume;
       
       if (totalVolume > 100) return 'high';
