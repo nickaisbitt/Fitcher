@@ -282,24 +282,44 @@ class MetricsCollector {
    * @param {string} type - Latency type
    */
   getLatencyStats(type = null) {
-    let latencies = this.metrics.latency;
+    const latencies = this.metrics.latency;
+    let count = 0;
     
+    // Count matches to allocate correctly
     if (type) {
-      latencies = latencies.filter(l => l.type === type);
+      for (let i = 0; i < latencies.length; i++) {
+        if (latencies[i].type === type) count++;
+      }
+    } else {
+      count = latencies.length;
     }
     
-    if (latencies.length === 0) {
+    if (count === 0) {
       return { avg: 0, min: 0, max: 0, p95: 0, p99: 0 };
     }
     
-    const values = latencies.map(l => l.value).sort((a, b) => a - b);
+    // Use pre-allocated TypedArray for performance
+    // Avoids GC overhead of object mapping
+    const values = new Float64Array(count);
+    let vIdx = 0;
+    let sum = 0;
+
+    for (let i = 0; i < latencies.length; i++) {
+      if (!type || latencies[i].type === type) {
+        const val = latencies[i].value;
+        values[vIdx++] = val;
+        sum += val;
+      }
+    }
+
+    values.sort();
     
     return {
-      avg: values.reduce((a, b) => a + b, 0) / values.length,
+      avg: sum / count,
       min: values[0],
-      max: values[values.length - 1],
-      p95: values[Math.floor(values.length * 0.95)],
-      p99: values[Math.floor(values.length * 0.99)]
+      max: values[count - 1],
+      p95: values[Math.floor(count * 0.95)],
+      p99: values[Math.floor(count * 0.99)]
     };
   }
 
@@ -360,11 +380,15 @@ class MetricsCollector {
     // Calculate stats for each group
     const stats = {};
     for (const [key, items] of Object.entries(groups)) {
-      const pnls = items.map(i => i.pnl || 0);
+      let totalPnl = 0;
+      for (let i = 0; i < items.length; i++) {
+        totalPnl += items[i].pnl || 0;
+      }
+
       stats[key] = {
         count: items.length,
-        totalPnl: pnls.reduce((a, b) => a + b, 0),
-        avgPnl: pnls.reduce((a, b) => a + b, 0) / items.length
+        totalPnl,
+        avgPnl: items.length > 0 ? totalPnl / items.length : 0
       };
     }
     
