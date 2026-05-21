@@ -1,3 +1,6 @@
 ## 2024-05-06 - Replacing O(N²) array operations
 **Learning:** Heavy use of `Array.shift()`, object spreading (`...obj`), and multiple `.reduce()` chained loops within `for` loops in Node.js creates significant GC thrashing and O(N²) complexity loops, forming a substantial bottleneck on performance paths like BacktestEngine execution.
 **Action:** Replace `.shift()` with index pointers, `.splice()` for bulk deletion, and replace `.reduce()`/`.filter()` chaining with single pass loops.
+## 2026-05-21 - Array Method Overhead in Hot Loops
+**Learning:** Chaining array methods like `.map().reduce().filter()` in performance-sensitive logic (such as signal aggregation and market metrics calculation) creates significant garbage collection overhead and redundant iterations. Specifically, creating intermediate arrays inside frequently executed signal aggregation methods blocks the main thread.
+**Action:** When identifying performance bottlenecks in aggregation or routing algorithms, aggressively replace chained array methods with single-pass `for` loops. For numeric data that requires sorting (like latency arrays), use typed arrays (e.g., `new Float64Array()`) to gain native numerical sorting and reduce object allocations. Ensure the logic exactly matches the original mathematically, especially regarding default initializations (e.g. `sum = 0`).

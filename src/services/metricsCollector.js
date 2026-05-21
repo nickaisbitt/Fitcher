@@ -292,14 +292,21 @@ class MetricsCollector {
       return { avg: 0, min: 0, max: 0, p95: 0, p99: 0 };
     }
     
-    const values = latencies.map(l => l.value).sort((a, b) => a - b);
+    const values = new Float64Array(latencies.length);
+    let sum = 0;
+    for (let i = 0; i < latencies.length; i++) {
+      const val = latencies[i].value;
+      values[i] = val;
+      sum += val;
+    }
+    values.sort();
     
     return {
-      avg: values.reduce((a, b) => a + b, 0) / values.length,
+      avg: sum / latencies.length,
       min: values[0],
-      max: values[values.length - 1],
-      p95: values[Math.floor(values.length * 0.95)],
-      p99: values[Math.floor(values.length * 0.99)]
+      max: values[latencies.length - 1],
+      p95: values[Math.floor(latencies.length * 0.95)],
+      p99: values[Math.floor(latencies.length * 0.99)]
     };
   }
 
@@ -360,11 +367,14 @@ class MetricsCollector {
     // Calculate stats for each group
     const stats = {};
     for (const [key, items] of Object.entries(groups)) {
-      const pnls = items.map(i => i.pnl || 0);
+      let totalPnl = 0;
+      for (let i = 0; i < items.length; i++) {
+        totalPnl += items[i].pnl || 0;
+      }
       stats[key] = {
         count: items.length,
-        totalPnl: pnls.reduce((a, b) => a + b, 0),
-        avgPnl: pnls.reduce((a, b) => a + b, 0) / items.length
+        totalPnl,
+        avgPnl: totalPnl / items.length
       };
     }
     
