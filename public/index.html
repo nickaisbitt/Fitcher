@@ -4472,8 +4472,10 @@ function KrakenTradingBot() {
 
           <div className="flex items-center gap-3">
             <button
+              aria-label={settings.soundEnabled ? 'Disable sound' : 'Enable sound'}
+              title={settings.soundEnabled ? 'Disable sound' : 'Enable sound'}
               onClick={() => setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
-              className={`p-2 rounded-lg transition ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
+              className={`p-2 rounded-lg transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
             >
               {settings.soundEnabled ? '🔊' : '🔇'}
             </button>
@@ -4500,8 +4502,8 @@ function KrakenTradingBot() {
               <div className="space-y-3">
                 <div className="text-sm text-slate-400 font-medium">Mode & Exchange</div>
                 <div className="flex gap-2">
-                  <button onClick={() => { setMode('paper'); disconnectWebSocket(); }} className={`flex-1 py-2 rounded-xl font-medium transition ${mode === 'paper' ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 hover:bg-slate-600'}`}>Paper</button>
-                  <button onClick={() => setMode('live')} className={`flex-1 py-2 rounded-xl font-medium transition ${mode === 'live' ? 'bg-emerald-500 text-slate-900' : 'bg-slate-700 hover:bg-slate-600'}`}>Live</button>
+                  <button onClick={() => { setMode('paper'); disconnectWebSocket(); }} className={`flex-1 py-2 rounded-xl font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none ${mode === 'paper' ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 hover:bg-slate-600'}`}>Paper</button>
+                  <button onClick={() => setMode('live')} className={`flex-1 py-2 rounded-xl font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none ${mode === 'live' ? 'bg-emerald-500 text-slate-900' : 'bg-slate-700 hover:bg-slate-600'}`}>Live</button>
                 </div>
 
                 {/* Exchange Selector */}
@@ -5623,7 +5625,17 @@ function KrakenTradingBot() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center text-slate-500 py-4">No patterns detected - fetch historical data first</div>
+                      <div className="flex flex-col items-center justify-center py-6 text-center bg-slate-900/30 rounded-xl border border-slate-700/30">
+                        <div className="text-3xl mb-2">🔍</div>
+                        <div className="text-slate-300 font-medium mb-1">No patterns detected</div>
+                        <div className="text-sm text-slate-500 mb-4">Fetch historical data to analyze chart patterns</div>
+                        <button
+                          onClick={() => setActiveTab('backtest')}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                        >
+                          Go to Data Fetcher
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -6760,7 +6772,7 @@ function KrakenTradingBot() {
                         <div className="mt-6 text-center">
                             <button
                                 onClick={() => setIsLogin(!isLogin)}
-                                className="text-cyan-400 hover:text-cyan-300 text-sm"
+                                className="text-cyan-400 hover:text-cyan-300 text-sm focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none rounded"
                             >
                                 {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
                             </button>
@@ -6769,7 +6781,7 @@ function KrakenTradingBot() {
                         <div className="mt-6 pt-6 border-t border-slate-700/50 text-center">
                             <button
                                 onClick={onAuthenticated}
-                                className="text-slate-500 hover:text-slate-400 text-xs"
+                                className="text-slate-500 hover:text-slate-400 text-xs focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none rounded"
                             >
                                 Continue without account (Demo Mode)
                             </button>
