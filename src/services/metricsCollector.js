@@ -281,7 +281,7 @@ class MetricsCollector {
    * Get latency statistics
    * @param {string} type - Latency type
    */
-  getLatencyStats(type = null) {
+      getLatencyStats(type = null) {
     let latencies = this.metrics.latency;
     
     if (type) {
@@ -292,14 +292,27 @@ class MetricsCollector {
       return { avg: 0, min: 0, max: 0, p95: 0, p99: 0 };
     }
     
-    const values = latencies.map(l => l.value).sort((a, b) => a - b);
+    // ⚡ Bolt: Use pre-allocated Float64Array instead of mapping to a standard array.
+    // Impact: Prevents garbage collection pressure and speeds up sorting operations
+    // for potentially large numerical arrays.
+    const values = new Float64Array(latencies.length);
+    let sum = 0;
+
+    for (let i = 0; i < latencies.length; i++) {
+      values[i] = latencies[i].value;
+      sum += values[i];
+    }
+
+    values.sort();
+
+    const len = values.length;
     
     return {
-      avg: values.reduce((a, b) => a + b, 0) / values.length,
+      avg: sum / len,
       min: values[0],
-      max: values[values.length - 1],
-      p95: values[Math.floor(values.length * 0.95)],
-      p99: values[Math.floor(values.length * 0.99)]
+      max: values[len - 1],
+      p95: values[Math.floor(len * 0.95)],
+      p99: values[Math.floor(len * 0.99)]
     };
   }
 

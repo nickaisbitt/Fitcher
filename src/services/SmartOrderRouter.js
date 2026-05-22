@@ -255,24 +255,30 @@ class SmartOrderRouter {
   /**
    * Calculate volatility using ATR or standard deviation
    */
-  async calculateVolatility(pair) {
+      async calculateVolatility(pair) {
     if (!this.priceFeed) return 0.02; // Default 2%
     
     try {
       const candles = await this.priceFeed.getCandles(pair, '1h', 24);
       if (!candles || candles.length < 2) return 0.02;
       
-      // Calculate returns
-      const returns = [];
+      // ⚡ Bolt: Implemented Welford's online algorithm for single-pass variance calculation.
+      // Impact: Eliminates array allocation for returns and multiple passes (.reduce),
+      // preventing GC overhead and improving speed.
+      let count = 0;
+      let mean = 0;
+      let M2 = 0;
+
       for (let i = 1; i < candles.length; i++) {
         const ret = (candles[i].close - candles[i-1].close) / candles[i-1].close;
-        returns.push(ret);
+        count++;
+        const delta = ret - mean;
+        mean += delta / count;
+        const delta2 = ret - mean;
+        M2 += delta * delta2;
       }
       
-      // Calculate standard deviation
-      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-      const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
-      const stdDev = Math.sqrt(variance);
+      const stdDev = count > 0 ? Math.sqrt(M2 / count) : 0;
       
       return stdDev;
     } catch (error) {
@@ -284,16 +290,24 @@ class SmartOrderRouter {
   /**
    * Assess market liquidity
    */
-  async assessLiquidity(pair) {
+      async assessLiquidity(pair) {
     if (!this.priceFeed) return 'medium';
     
     try {
       const orderBook = await this.priceFeed.getOrderBook(pair);
       if (!orderBook) return 'medium';
       
-      const totalBidVolume = orderBook.bids.reduce((sum, bid) => sum + bid[1], 0);
-      const totalAskVolume = orderBook.asks.reduce((sum, ask) => sum + ask[1], 0);
-      const totalVolume = totalBidVolume + totalAskVolume;
+      // ⚡ Bolt: Replaced chained .reduce with direct for-loops.
+      // Impact: Reduces function call overhead and GC pressure from array iteration callbacks.
+      let totalVolume = 0;
+
+      for (let i = 0; i < orderBook.bids.length; i++) {
+        totalVolume += orderBook.bids[i][1];
+      }
+
+      for (let i = 0; i < orderBook.asks.length; i++) {
+        totalVolume += orderBook.asks[i][1];
+      }
       
       if (totalVolume > 100) return 'high';
       if (totalVolume > 20) return 'medium';
