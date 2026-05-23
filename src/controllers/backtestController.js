@@ -326,7 +326,7 @@ class BacktestController {
   // GET /api/backtest/history/:id
   historyById = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { include } = req.query;
+    const include = req.query.include ? String(req.query.include) : undefined;
     const includeFull = include === 'full';
 
     const prisma = database.getPrisma();

@@ -50,4 +50,8 @@ if (missingVars.length > 0) {
   }
 }
 
+if (config.FRONTEND_URL === '*') {
+  throw new Error('Wildcard origin not allowed');
+}
+
 module.exports = config;

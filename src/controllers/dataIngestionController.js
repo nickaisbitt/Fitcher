@@ -145,7 +145,8 @@ class DataIngestionController {
   gaps = asyncHandler(async (req, res) => {
     await this.ensureInitialized();
 
-    const { pair = 'BTC/USD', timeframe = '1h' } = req.query;
+    const pair = req.query.pair ? String(req.query.pair) : 'BTC/USD';
+    const timeframe = req.query.timeframe ? String(req.query.timeframe) : '1h';
 
     const gaps = await this.ingestor.detectGaps(pair, timeframe);
 
@@ -191,9 +192,9 @@ class DataIngestionController {
    * Read historical data from local storage
    */
   read = asyncHandler(async (req, res) => {
+    const pair = req.query.pair ? String(req.query.pair) : 'BTC/USD';
+    const timeframe = req.query.timeframe ? String(req.query.timeframe) : '1h';
     const {
-      pair = 'BTC/USD',
-      timeframe = '1h',
       from,
       to,
       limit = 1000
