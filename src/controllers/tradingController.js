@@ -109,11 +109,11 @@ class TradingController {
   getOrders = asyncHandler(async (req, res) => {
     const userId = req.user.userId;
     const filters = {
-      status: req.query.status,
-      exchange: req.query.exchange,
+      status: req.query.status ? String(req.query.status) : undefined,
+      exchange: req.query.exchange ? String(req.query.exchange) : undefined,
       pair: req.query.pair ? String(req.query.pair).toUpperCase() : undefined,
-      side: req.query.side,
-      type: req.query.type
+      side: req.query.side ? String(req.query.side) : undefined,
+      type: req.query.type ? String(req.query.type) : undefined
     };
 
     // Remove undefined filters
