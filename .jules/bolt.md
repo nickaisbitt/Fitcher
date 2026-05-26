@@ -1,3 +1,6 @@
 ## 2024-05-06 - Replacing O(N²) array operations
 **Learning:** Heavy use of `Array.shift()`, object spreading (`...obj`), and multiple `.reduce()` chained loops within `for` loops in Node.js creates significant GC thrashing and O(N²) complexity loops, forming a substantial bottleneck on performance paths like BacktestEngine execution.
 **Action:** Replace `.shift()` with index pointers, `.splice()` for bulk deletion, and replace `.reduce()`/`.filter()` chaining with single pass loops.
+## 2026-05-26 - Optimizing Array Processing and Variance Calculation
+**Learning:** Chained array methods (`.map().reduce()`, multiple `.reduce()` passes) and intermediate array allocations in hot paths like metrics collection and volatility calculation create noticeable GC pressure and performance bottlenecks. Furthermore, calculating standard deviation naively requires two passes (one for mean, one for variance).
+**Action:** Use pre-allocated TypedArrays (e.g., `Float64Array`) for numeric data processing and sorting to eliminate GC overhead. Consolidate multiple passes over the same array into a single `for` loop where possible. Use Welford's online algorithm to calculate variance/standard deviation robustly in a single pass.
