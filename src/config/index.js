@@ -50,4 +50,10 @@ if (missingVars.length > 0) {
   }
 }
 
+// Validate CORS configuration
+if (config.FRONTEND_URL === '*') {
+  console.error('CRITICAL: Wildcard (*) origin is forbidden for CORS configuration due to security risks. Please set a specific FRONTEND_URL.');
+  process.exit(1);
+}
+
 module.exports = config;
