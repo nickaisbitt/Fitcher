@@ -212,10 +212,13 @@ class MarketDataController {
     }
 
     // Calculate aggregated metrics
-    const totalVolume = prices.reduce((sum, p) => sum + p.volume, 0);
-    const vwap = totalVolume > 0 
-      ? prices.reduce((sum, p) => sum + (p.price * p.volume), 0) / totalVolume 
-      : 0;
+    let totalVolume = 0;
+    let volumePriceSum = 0;
+    for (let j = 0; j < prices.length; j++) {
+      totalVolume += prices[j].volume;
+      volumePriceSum += prices[j].price * prices[j].volume;
+    }
+    const vwap = totalVolume > 0 ? volumePriceSum / totalVolume : 0;
 
     const bestBid = Math.max(...prices.map(p => p.bid));
     const bestAsk = Math.min(...prices.map(p => p.ask));
@@ -288,6 +291,15 @@ class MarketDataController {
       message: `Unsubscribed from ${type} data for ${pair}`,
       data: { type, pair }
     });
+  });
+
+  // GET /api/market/ticker - Get ticker
+  getTicker = asyncHandler(async (req, res) => {
+    if (!req.query.symbol) {
+      return res.status(400).json({ error: 'Symbol is required' });
+    }
+    // Add real logic later if needed
+    res.json({ success: true, symbol: req.query.symbol });
   });
 
   // GET /api/market/pairs - Get available trading pairs
