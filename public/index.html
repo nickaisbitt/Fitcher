@@ -4472,8 +4472,9 @@ function KrakenTradingBot() {
 
           <div className="flex items-center gap-3">
             <button
+              aria-label={settings.soundEnabled ? 'Disable sound alerts' : 'Enable sound alerts'}
               onClick={() => setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
-              className={`p-2 rounded-lg transition ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
+              className={`p-2 rounded-lg transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
             >
               {settings.soundEnabled ? '🔊' : '🔇'}
             </button>
@@ -4543,8 +4544,14 @@ function KrakenTradingBot() {
                 </button>
                 {mode === 'live' && (
                   <div className="space-y-2 pt-2 border-t border-slate-700">
-                    <input type="password" placeholder="API Key" value={settings.apiKey} onChange={e => setSettings(s => ({ ...s, apiKey: e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-2.5 text-sm" />
-                    <input type="password" placeholder="API Secret" value={settings.apiSecret} onChange={e => setSettings(s => ({ ...s, apiSecret: e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-2.5 text-sm" />
+                    <div>
+                      <label htmlFor="api-key" className="sr-only">API Key</label>
+                      <input id="api-key" type="password" placeholder="API Key" value={settings.apiKey} onChange={e => setSettings(s => ({ ...s, apiKey: e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-2.5 text-sm focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label htmlFor="api-secret" className="sr-only">API Secret</label>
+                      <input id="api-secret" type="password" placeholder="API Secret" value={settings.apiSecret} onChange={e => setSettings(s => ({ ...s, apiSecret: e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-2.5 text-sm focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none" />
+                    </div>
                     <button
                       onClick={async () => {
                         if (!settings.apiKey || !settings.apiSecret) {
@@ -4580,17 +4587,21 @@ function KrakenTradingBot() {
                 {/* OpenRouter AI Section */}
                 <div className="space-y-2 pt-2 border-t border-slate-700 mt-2">
                   <div className="text-xs text-purple-400 font-medium">🧠 AI Analysis (OpenRouter)</div>
+                  <label htmlFor="openrouter-key" className="sr-only">OpenRouter API Key</label>
                   <input
+                    id="openrouter-key"
                     type="password"
                     placeholder="OpenRouter API Key"
                     value={settings.openRouterKey}
                     onChange={e => setSettings(s => ({ ...s, openRouterKey: e.target.value }))}
-                    className="w-full bg-slate-900/50 border border-purple-500/30 rounded-xl p-2.5 text-sm"
+                    className="w-full bg-slate-900/50 border border-purple-500/30 rounded-xl p-2.5 text-sm focus-visible:ring-2 focus-visible:ring-purple-500 focus:outline-none"
                   />
+                  <label htmlFor="ai-model" className="sr-only">AI Model</label>
                   <select
+                    id="ai-model"
                     value={settings.aiModel}
                     onChange={e => setSettings(s => ({ ...s, aiModel: e.target.value }))}
-                    className="w-full bg-slate-900/50 border border-purple-500/30 rounded-xl p-2 text-sm"
+                    className="w-full bg-slate-900/50 border border-purple-500/30 rounded-xl p-2 text-sm focus-visible:ring-2 focus-visible:ring-purple-500 focus:outline-none"
                   >
                     <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet (Recommended)</option>
                     <option value="anthropic/claude-3-haiku">Claude 3 Haiku (Fast)</option>
@@ -5623,7 +5634,17 @@ function KrakenTradingBot() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center text-slate-500 py-4">No patterns detected - fetch historical data first</div>
+                      <div className="flex flex-col items-center justify-center py-4 text-center">
+                        <div className="text-2xl mb-2">📊</div>
+                        <div className="text-slate-300 font-medium mb-1">No patterns detected</div>
+                        <div className="text-xs text-slate-500 mb-3">Fetch historical data to analyze chart patterns.</div>
+                        <button
+                          onClick={() => fetchHistoricalData(selectedPair, timeframe)}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                        >
+                          Fetch Data
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -6624,7 +6645,17 @@ function KrakenTradingBot() {
                     </button>
                   </div>
                 ) : (
-                  <div className="text-slate-500 text-center py-6">No open position</div>
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                    <div className="text-3xl mb-2">📉</div>
+                    <div className="text-slate-300 font-medium mb-1">No open position</div>
+                    <div className="text-xs text-slate-500 mb-3">Open a position to see live P&L tracking here.</div>
+                    <button
+                      onClick={() => executeTrade('buy', selectedPair, 'Manual Entry')}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                    >
+                      Open Buy Position
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
