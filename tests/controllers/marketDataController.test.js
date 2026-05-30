@@ -15,12 +15,21 @@ describe('MarketDataController', () => {
       };
     });
 
-    it('should return 400 if symbol is missing', async () => {
-      // req.query.symbol is undefined
-      await marketDataController.getTicker(req, res);
+    it('should return 404 if symbol is missing for getPrice', async () => {
+      req.params = { pair: undefined };
+      req.query = {};
 
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Symbol is required' });
+      // Initialize controller
+      await marketDataController.initialize();
+
+      await marketDataController.getPrice(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        error: 'Price not found',
+        code: 'PRICE_NOT_FOUND'
+      });
     });
   });
 });
