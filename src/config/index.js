@@ -38,6 +38,12 @@ const config = {
 };
 
 // Validate required environment variables
+
+if (config.FRONTEND_URL === '*') {
+  console.error('CRITICAL: FRONTEND_URL cannot be set to a wildcard (*) due to CORS security risks.');
+  process.exit(1);
+}
+
 const requiredVars = ['DATABASE_URL', 'JWT_SECRET'];
 const missingVars = requiredVars.filter(varName => !config[varName]);
 
