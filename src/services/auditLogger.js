@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const logger = require('../utils/logger');
 const eventBus = require('../utils/eventBus');
 
@@ -108,7 +109,7 @@ class AuditLogger {
     if (!this.config.enabled) return;
     
     const entry = {
-      id: `audit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
       timestamp: Date.now(),
       eventType,
       level,

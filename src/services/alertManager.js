@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const logger = require('../utils/logger');
 const eventBus = require('../utils/eventBus');
 
@@ -96,7 +97,7 @@ class AlertManager {
    * @param {Object} config - Alert configuration
    */
   createAlert(userId, config) {
-    const alertId = `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const alertId = `alert_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
     
     const alert = {
       id: alertId,
@@ -154,7 +155,7 @@ class AlertManager {
     
     // Create alert record
     const alert = {
-      id: `alert_${now}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `alert_${now}_${crypto.randomBytes(4).toString('hex')}`,
       type,
       severity: data.severity,
       message: data.message,
