@@ -4693,7 +4693,7 @@ function KrakenTradingBot() {
                     <button
                       key={pair}
                       onClick={() => setSelectedPair(pair)}
-                      className={`p-1 rounded text-[9px] font-bold transition ${selectedPair === pair ? 'ring-2 ring-cyan-400' : ''}`}
+                      className={`p-1 rounded text-[9px] font-bold transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none ${selectedPair === pair ? 'ring-2 ring-cyan-400' : ''}`}
                       style={{ background: change >= 0 ? `rgba(16,185,129,${intensity})` : `rgba(239,68,68,${intensity})` }}
                     >
                       {pair.split('/')[0].slice(0, 3)}
@@ -4711,7 +4711,7 @@ function KrakenTradingBot() {
                   <button
                     key={pair}
                     onClick={() => setSelectedPair(pair)}
-                    className={`w-full px-3 py-1.5 flex justify-between hover:bg-slate-700/30 border-l-2 text-sm transition ${selectedPair === pair ? 'bg-cyan-500/10 border-cyan-400' : 'border-transparent'}`}
+                    className={`w-full px-3 py-1.5 flex justify-between hover:bg-slate-700/30 border-l-2 text-sm transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none ${selectedPair === pair ? 'bg-cyan-500/10 border-cyan-400' : 'border-transparent'}`}
                   >
                     <span className="font-medium">{pair.split('/')[0]}</span>
                     <div className="text-right">
@@ -4775,7 +4775,7 @@ function KrakenTradingBot() {
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium transition ${activeTab === tab ? 'bg-cyan-500 text-slate-900' : 'bg-slate-800/50 hover:bg-slate-700/50'} ${tab === 'ai' || tab === 'evolution' ? 'border border-purple-500/30' : ''} ${tab === 'pro' || tab === 'market' ? 'border border-amber-500/30' : ''} ${tab === 'risk' ? 'border border-red-500/30' : ''} ${tab === 'simulate' ? 'border border-cyan-500/30' : ''}`}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none ${activeTab === tab ? 'bg-cyan-500 text-slate-900' : 'bg-slate-800/50 hover:bg-slate-700/50'} ${tab === 'ai' || tab === 'evolution' ? 'border border-purple-500/30' : ''} ${tab === 'pro' || tab === 'market' ? 'border border-amber-500/30' : ''} ${tab === 'risk' ? 'border border-red-500/30' : ''} ${tab === 'simulate' ? 'border border-cyan-500/30' : ''}`}
                 >
                   {tab === 'ai' ? '🧠 AI' : tab === 'evolution' ? '🧬 Evolution' : tab === 'pro' ? '🏆 Pro' : tab === 'market' ? '📊 Market' : tab === 'risk' ? '🛡️ Risk' : tab === 'simulate' ? '🎲 Simulate' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
@@ -5431,10 +5431,18 @@ function KrakenTradingBot() {
 
                   {/* No trades warning */}
                   {trades.length < 10 && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-center">
-                      <div className="text-amber-400 font-medium">⚠️ Need More Data</div>
-                      <div className="text-sm text-slate-400 mt-1">Run some trades first (minimum 10) to enable simulation analysis</div>
-                      <div className="text-xs text-slate-500 mt-2">Current trades: {trades.length}</div>
+                    <div className="flex flex-col items-center justify-center text-center p-8 bg-slate-800/30 rounded-xl border border-slate-700/50">
+                      <div className="text-4xl mb-3">🎲</div>
+                      <div className="text-lg font-medium text-slate-300 mb-1">More data needed for simulation</div>
+                      <div className="text-sm text-slate-500 mb-4 max-w-sm">
+                        Advanced simulations require a larger sample size to be statistically significant. Currently have {trades.length} trades.
+                      </div>
+                      <button
+                        onClick={() => setActiveTab('backtest')}
+                        className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                      >
+                        Run more backtests
+                      </button>
                     </div>
                   )}
                 </div>
@@ -6591,7 +6599,7 @@ function KrakenTradingBot() {
                 </div>
                 <button
                   onClick={toggleBot}
-                  className={`w-full py-4 rounded-xl font-bold text-lg transition ${isRunning ? 'bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600' : 'bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600'}`}
+                  className={`w-full py-4 rounded-xl font-bold text-lg transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none ${isRunning ? 'bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600' : 'bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600'}`}
                 >
                   {isRunning ? '■ Stop Bot' : '▶ Start Bot'}
                 </button>
@@ -6618,7 +6626,7 @@ function KrakenTradingBot() {
                     </div>
                     <button
                       onClick={() => executeTrade('sell', selectedPair, 'Manual Close')}
-                      className="w-full py-2 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 text-sm font-medium hover:bg-red-500/30 transition"
+                      className="w-full py-2 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 text-sm font-medium hover:bg-red-500/30 transition focus-visible:ring-2 focus-visible:ring-red-500 focus:outline-none"
                     >
                       Close Position
                     </button>
