@@ -50,4 +50,9 @@ if (missingVars.length > 0) {
   }
 }
 
+if (config.FRONTEND_URL === '*') {
+  console.error('Security Error: FRONTEND_URL cannot be a wildcard (*) origin to prevent insecure CORS configurations.');
+  process.exit(1);
+}
+
 module.exports = config;
