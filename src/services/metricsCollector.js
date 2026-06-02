@@ -226,34 +226,22 @@ class MetricsCollector {
    * @param {number} since - Optional time filter
    */
   getTradeStats(userId = null, since = null) {
-    let trades = this.metrics.trades;
-    
-    if (userId) {
-      trades = trades.filter(t => t.userId === userId);
-    }
-    
-    if (since) {
-      trades = trades.filter(t => t.timestamp >= since);
-    }
-    
-    if (trades.length === 0) {
-      return {
-        total: 0,
-        winning: 0,
-        losing: 0,
-        winRate: 0,
-        avgPnl: 0,
-        totalPnl: 0,
-        avgLatency: 0
-      };
-    }
-    
+    const allTrades = this.metrics.trades;
     let winningCount = 0;
     let losingCount = 0;
     let totalPnl = 0;
     let totalLatency = 0;
+    let count = 0;
 
-    for (const t of trades) {
+    const byPairStats = {};
+    const byStrategyStats = {};
+
+    for (let i = 0; i < allTrades.length; i++) {
+      const t = allTrades[i];
+      if (userId && t.userId !== userId) continue;
+      if (since && t.timestamp < since) continue;
+
+      count++;
       const pnl = t.pnl || 0;
       if (pnl > 0) {
         winningCount++;
@@ -262,18 +250,59 @@ class MetricsCollector {
       }
       totalPnl += pnl;
       totalLatency += t.latency || 0;
+
+      const pair = t.pair || 'unknown';
+      let pairStat = byPairStats[pair];
+      if (!pairStat) {
+        pairStat = { count: 0, totalPnl: 0, avgPnl: 0 };
+        byPairStats[pair] = pairStat;
+      }
+      pairStat.count++;
+      pairStat.totalPnl += pnl;
+
+      const strategy = t.strategyId || 'unknown';
+      let strategyStat = byStrategyStats[strategy];
+      if (!strategyStat) {
+        strategyStat = { count: 0, totalPnl: 0, avgPnl: 0 };
+        byStrategyStats[strategy] = strategyStat;
+      }
+      strategyStat.count++;
+      strategyStat.totalPnl += pnl;
+    }
+
+    if (count === 0) {
+      return {
+        total: 0,
+        winning: 0,
+        losing: 0,
+        winRate: 0,
+        avgPnl: 0,
+        totalPnl: 0,
+        avgLatency: 0,
+        byPair: {},
+        byStrategy: {}
+      };
+    }
+
+    for (const k in byPairStats) {
+      const stat = byPairStats[k];
+      stat.avgPnl = stat.totalPnl / stat.count;
+    }
+    for (const k in byStrategyStats) {
+      const stat = byStrategyStats[k];
+      stat.avgPnl = stat.totalPnl / stat.count;
     }
     
     return {
-      total: trades.length,
+      total: count,
       winning: winningCount,
       losing: losingCount,
-      winRate: (winningCount / trades.length) * 100,
-      avgPnl: totalPnl / trades.length,
+      winRate: (winningCount / count) * 100,
+      avgPnl: totalPnl / count,
       totalPnl,
-      avgLatency: totalLatency / trades.length,
-      byPair: this.groupBy(trades, 'pair'),
-      byStrategy: this.groupBy(trades, 'strategyId')
+      avgLatency: totalLatency / count,
+      byPair: byPairStats,
+      byStrategy: byStrategyStats
     };
   }
 
@@ -282,24 +311,37 @@ class MetricsCollector {
    * @param {string} type - Latency type
    */
   getLatencyStats(type = null) {
-    let latencies = this.metrics.latency;
+    const latencies = this.metrics.latency;
     
-    if (type) {
-      latencies = latencies.filter(l => l.type === type);
+    // Optimization: Single-pass filtering + pre-allocated Float64Array avoids GC overhead and array spreading
+    let count = 0;
+    for (let i = 0; i < latencies.length; i++) {
+      if (!type || latencies[i].type === type) count++;
     }
     
-    if (latencies.length === 0) {
+    if (count === 0) {
       return { avg: 0, min: 0, max: 0, p95: 0, p99: 0 };
     }
     
-    const values = latencies.map(l => l.value).sort((a, b) => a - b);
+    const values = new Float64Array(count);
+    let sum = 0;
+    let idx = 0;
+    for (let i = 0; i < latencies.length; i++) {
+      if (!type || latencies[i].type === type) {
+        const val = latencies[i].value;
+        values[idx++] = val;
+        sum += val;
+      }
+    }
+
+    values.sort();
     
     return {
-      avg: values.reduce((a, b) => a + b, 0) / values.length,
+      avg: sum / count,
       min: values[0],
-      max: values[values.length - 1],
-      p95: values[Math.floor(values.length * 0.95)],
-      p99: values[Math.floor(values.length * 0.99)]
+      max: values[count - 1],
+      p95: values[Math.floor(count * 0.95)],
+      p99: values[Math.floor(count * 0.99)]
     };
   }
 
@@ -347,25 +389,27 @@ class MetricsCollector {
    * @param {string} key - Key to group by
    */
   groupBy(array, key) {
-    const groups = {};
+    const stats = {};
     
-    for (const item of array) {
+    // Optimization: Single-pass grouping avoids O(N^2) overhead from Object.entries().map().reduce()
+    for (let i = 0; i < array.length; i++) {
+      const item = array[i];
       const value = item[key] || 'unknown';
-      if (!groups[value]) {
-        groups[value] = [];
+      const pnl = item.pnl || 0;
+
+      let stat = stats[value];
+      if (!stat) {
+        stat = { count: 0, totalPnl: 0, avgPnl: 0 };
+        stats[value] = stat;
       }
-      groups[value].push(item);
+
+      stat.count++;
+      stat.totalPnl += pnl;
     }
     
-    // Calculate stats for each group
-    const stats = {};
-    for (const [key, items] of Object.entries(groups)) {
-      const pnls = items.map(i => i.pnl || 0);
-      stats[key] = {
-        count: items.length,
-        totalPnl: pnls.reduce((a, b) => a + b, 0),
-        avgPnl: pnls.reduce((a, b) => a + b, 0) / items.length
-      };
+    for (const k in stats) {
+      const stat = stats[k];
+      stat.avgPnl = stat.totalPnl / stat.count;
     }
     
     return stats;
