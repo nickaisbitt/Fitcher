@@ -301,8 +301,13 @@ class StrategyOptimizer {
    * @param {Array} values - Values array
    */
   average(values) {
-    if (values.length === 0) return 0;
-    return values.reduce((a, b) => a + b, 0) / values.length;
+    if (!values || values.length === 0) return 0;
+    // Optimization: Single-pass for-loop prevents O(N) chained array overhead
+    let sum = 0;
+    for (let i = 0; i < values.length; i++) {
+      sum += values[i];
+    }
+    return sum / values.length;
   }
 
   /**
@@ -310,9 +315,18 @@ class StrategyOptimizer {
    * @param {Array} values - Values array
    */
   stdDev(values) {
-    if (values.length < 2) return 0;
-    const avg = this.average(values);
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
+    if (!values || values.length < 2) return 0;
+    // Optimization: Welford's online algorithm calculates variance in 1 pass instead of 2
+    let mean = 0;
+    let M2 = 0;
+    for (let i = 0; i < values.length; i++) {
+      const x = values[i];
+      const delta = x - mean;
+      mean += delta / (i + 1);
+      const delta2 = x - mean;
+      M2 += delta * delta2;
+    }
+    const variance = M2 / values.length;
     return Math.sqrt(variance);
   }
 

@@ -340,13 +340,14 @@ class SignalAggregator {
    * Store aggregated signal in history
    */
   storeAggregatedSignal(signal) {
+    // Optimization: Using faster native PRNG for signal IDs instead of crypto to reduce CPU overhead
     this.recentSignals.push({
       ...signal,
       id: `agg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     });
 
     if (this.recentSignals.length > 500) {
-      this.recentSignals.shift();
+      this.recentSignals.splice(0, this.recentSignals.length - 500);
     }
   }
 

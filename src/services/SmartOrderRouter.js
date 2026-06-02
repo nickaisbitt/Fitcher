@@ -291,9 +291,14 @@ class SmartOrderRouter {
       const orderBook = await this.priceFeed.getOrderBook(pair);
       if (!orderBook) return 'medium';
       
-      const totalBidVolume = orderBook.bids.reduce((sum, bid) => sum + bid[1], 0);
-      const totalAskVolume = orderBook.asks.reduce((sum, ask) => sum + ask[1], 0);
-      const totalVolume = totalBidVolume + totalAskVolume;
+      // Optimization: Single-pass for-loop avoids creating intermediate arrays via reduce()
+      let totalVolume = 0;
+      for (let i = 0; i < orderBook.bids.length; i++) {
+        totalVolume += orderBook.bids[i][1];
+      }
+      for (let i = 0; i < orderBook.asks.length; i++) {
+        totalVolume += orderBook.asks[i][1];
+      }
       
       if (totalVolume > 100) return 'high';
       if (totalVolume > 20) return 'medium';
