@@ -177,16 +177,20 @@ class SignalAggregator {
       };
     });
 
-    // Calculate weighted average confidence
-    const totalWeight = weightedSignals.reduce((sum, s) => sum + s.weight, 0);
-    const weightedConfidence = weightedSignals.reduce(
-      (sum, s) => sum + (s.confidence * s.weight), 0
-    ) / totalWeight;
+    // Calculate weighted averages in a single pass
+    let totalWeight = 0;
+    let sumWeightedConfidence = 0;
+    let sumWeightedSize = 0;
 
-    // Combine position sizes (weighted average)
-    const weightedSize = weightedSignals.reduce(
-      (sum, s) => sum + ((s.amount || 0) * s.weight), 0
-    ) / totalWeight;
+    for (let i = 0; i < weightedSignals.length; i++) {
+      const s = weightedSignals[i];
+      totalWeight += s.weight;
+      sumWeightedConfidence += s.confidence * s.weight;
+      sumWeightedSize += (s.amount || 0) * s.weight;
+    }
+
+    const weightedConfidence = totalWeight > 0 ? sumWeightedConfidence / totalWeight : 0;
+    const weightedSize = totalWeight > 0 ? sumWeightedSize / totalWeight : 0;
 
     // Combine reasons
     const allReasons = weightedSignals.map(s => `${s.strategy}: ${s.reason}`);
@@ -345,8 +349,9 @@ class SignalAggregator {
       id: `agg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     });
 
-    if (this.recentSignals.length > 500) {
-      this.recentSignals.shift();
+    // Batch trim the array to reduce O(N) shift operations
+    if (this.recentSignals.length > 600) {
+      this.recentSignals.splice(0, this.recentSignals.length - 500);
     }
   }
 
