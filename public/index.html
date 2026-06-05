@@ -4615,12 +4615,12 @@ function KrakenTradingBot() {
                 </select>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs text-slate-500">Stop Loss %</label>
-                    <input type="number" value={settings.stopLoss} onChange={e => setSettings(s => ({ ...s, stopLoss: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
+                    <label htmlFor="stopLossInput" className="text-xs text-slate-500">Stop Loss %</label>
+                    <input id="stopLossInput" type="number" value={settings.stopLoss} onChange={e => setSettings(s => ({ ...s, stopLoss: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500">Take Profit %</label>
-                    <input type="number" value={settings.takeProfit} onChange={e => setSettings(s => ({ ...s, takeProfit: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
+                    <label htmlFor="takeProfitInput" className="text-xs text-slate-500">Take Profit %</label>
+                    <input id="takeProfitInput" type="number" value={settings.takeProfit} onChange={e => setSettings(s => ({ ...s, takeProfit: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
                   </div>
                 </div>
               </div>
@@ -5483,6 +5483,20 @@ function KrakenTradingBot() {
                       ))}
                     </div>
                   )}
+
+                  {!optimizerResults && !isOptimizing && (
+                    <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                      <div className="text-4xl mb-3">🤖</div>
+                      <div className="text-lg font-medium text-slate-300 mb-1">Optimize your strategy</div>
+                      <div className="text-sm text-slate-500 mb-4 max-w-xs">Run the AI Optimizer to find the most profitable Stop Loss and Take Profit combinations for {selectedPair}.</div>
+                      <button
+                        onClick={runOptimizer}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-violet-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-violet-500 focus:outline-none"
+                      >
+                        Run Optimizer
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -5523,7 +5537,17 @@ function KrakenTradingBot() {
                   )}
 
                   {scanResults.length === 0 && !isScanning && (
-                    <div className="text-center text-slate-500 py-8">Click "Scan Now" to find trading signals</div>
+                    <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                      <div className="text-4xl mb-3">🔍</div>
+                      <div className="text-lg font-medium text-slate-300 mb-1">No scan results</div>
+                      <div className="text-sm text-slate-500 mb-4 max-w-xs">Run the scanner to discover potential trading opportunities across all pairs.</div>
+                      <button
+                        onClick={runScanner}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-purple-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-purple-500 focus:outline-none"
+                      >
+                        Scan Now
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -6492,12 +6516,20 @@ function KrakenTradingBot() {
                       <div className="text-4xl mb-3">📊</div>
                       <div className="text-lg font-medium text-slate-300 mb-1">No trades executed yet</div>
                       <div className="text-sm text-slate-500 mb-4 max-w-xs">Start the trading bot or run a backtest to see your trading history here.</div>
-                      <button
-                        onClick={() => setActiveTab('backtest')}
-                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
-                      >
-                        Run a Backtest
-                      </button>
+                      <div className="flex gap-3 justify-center">
+                        <button
+                          onClick={() => setActiveTab('backtest')}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                        >
+                          Run a Backtest
+                        </button>
+                        <button
+                          onClick={toggleBot}
+                          className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-emerald-500 focus:outline-none"
+                        >
+                          {isRunning ? 'Stop Bot' : 'Start Bot'}
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <table className="w-full text-sm">
