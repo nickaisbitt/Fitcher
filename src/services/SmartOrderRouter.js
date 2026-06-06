@@ -262,16 +262,20 @@ class SmartOrderRouter {
       const candles = await this.priceFeed.getCandles(pair, '1h', 24);
       if (!candles || candles.length < 2) return 0.02;
       
-      // Calculate returns
-      const returns = [];
+      let count = 0;
+      let mean = 0;
+      let M2 = 0;
+
       for (let i = 1; i < candles.length; i++) {
         const ret = (candles[i].close - candles[i-1].close) / candles[i-1].close;
-        returns.push(ret);
+        count += 1;
+        const delta = ret - mean;
+        mean += delta / count;
+        const delta2 = ret - mean;
+        M2 += delta * delta2;
       }
       
-      // Calculate standard deviation
-      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-      const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+      const variance = M2 / count;
       const stdDev = Math.sqrt(variance);
       
       return stdDev;

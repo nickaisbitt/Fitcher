@@ -74,17 +74,29 @@ class MultiTimeframeIndicatorState {
    */
   buildHigherTimeframeCandle(timeframe, multiplier) {
     const baseCandles = this.candleBuffers['15m'];
-    if (baseCandles.length < multiplier) return null;
+    const len = baseCandles.length;
+    if (len < multiplier) return null;
     
-    const recentCandles = baseCandles.slice(-multiplier);
+    const startIndex = len - multiplier;
+
+    let high = -Infinity;
+    let low = Infinity;
+    let volume = 0;
+
+    for (let i = startIndex; i < len; i++) {
+      const c = baseCandles[i];
+      if (c.high > high) high = c.high;
+      if (c.low < low) low = c.low;
+      volume += (c.volume || 0);
+    }
     
     return {
-      timestamp: recentCandles[recentCandles.length - 1].timestamp,
-      open: recentCandles[0].open,
-      high: Math.max(...recentCandles.map(c => c.high)),
-      low: Math.min(...recentCandles.map(c => c.low)),
-      close: recentCandles[recentCandles.length - 1].close,
-      volume: recentCandles.reduce((sum, c) => sum + (c.volume || 0), 0)
+      timestamp: baseCandles[len - 1].timestamp,
+      open: baseCandles[startIndex].open,
+      high,
+      low,
+      close: baseCandles[len - 1].close,
+      volume
     };
   }
 
@@ -134,10 +146,8 @@ class MultiTimeframeIndicatorState {
    * Returns: strong_uptrend | uptrend | ranging | downtrend | strong_downtrend
    */
   analyzeTrendAlignment(snapshot) {
-    const trends = {};
     let uptrendCount = 0;
     let downtrendCount = 0;
-    let rangingCount = 0;
     let validTimeframes = 0;
     
     for (const tf of this.timeframes) {
@@ -148,13 +158,11 @@ class MultiTimeframeIndicatorState {
       
       // Determine trend for this timeframe
       const trend = this.calculateTrend(state);
-      trends[tf] = trend;
       
       if (trend === 'strong_uptrend') uptrendCount += 2;
       else if (trend === 'uptrend') uptrendCount += 1;
       else if (trend === 'strong_downtrend') downtrendCount += 2;
       else if (trend === 'downtrend') downtrendCount += 1;
-      else rangingCount += 1;
     }
     
     if (validTimeframes === 0) return 'unknown';
@@ -179,36 +187,25 @@ class MultiTimeframeIndicatorState {
     const emaDiff = state.ema12 - state.ema26;
     const emaDiffPct = Math.abs(emaDiff) / state.ema26;
     
-    // Check EMA alignment
-    const emaBullish = state.ema12 > state.ema26;
+    const emaBullish = emaDiff > 0;
     const smaBullish = state.sma20 > state.sma50;
     
-    // MACD confirmation
     const macdBullish = state.macd && state.macd.histogram > 0;
     
-    // RSI context
-    const rsiBullish = state.rsi && state.rsi > 50 && state.rsi < 80;
-    const rsiBearish = state.rsi && state.rsi < 50 && state.rsi > 20;
-    
     let bullishSignals = 0;
-    if (emaBullish) bullishSignals++;
-    if (smaBullish) bullishSignals++;
-    if (macdBullish) bullishSignals++;
-    if (rsiBullish) bullishSignals++;
-    
     let bearishSignals = 0;
-    if (!emaBullish) bearishSignals++;
-    if (!smaBullish) bearishSignals++;
-    if (!macdBullish) bearishSignals++;
-    if (rsiBearish) bearishSignals++;
+
+    if (emaBullish) bullishSignals++; else bearishSignals++;
+    if (smaBullish) bullishSignals++; else bearishSignals++;
+    if (macdBullish) bullishSignals++; else bearishSignals++;
     
-    // Strong trend requires both EMA and at least 2 other confirmations
-    if (emaBullish && bullishSignals >= 3 && emaDiffPct > 0.01) {
-      return 'strong_uptrend';
+    if (state.rsi) {
+      if (state.rsi > 50 && state.rsi < 80) bullishSignals++;
+      if (state.rsi < 50 && state.rsi > 20) bearishSignals++;
     }
-    if (!emaBullish && bearishSignals >= 3 && emaDiffPct > 0.01) {
-      return 'strong_downtrend';
-    }
+
+    if (emaBullish && bullishSignals >= 3 && emaDiffPct > 0.01) return 'strong_uptrend';
+    if (!emaBullish && bearishSignals >= 3 && emaDiffPct > 0.01) return 'strong_downtrend';
     if (bullishSignals >= 2) return 'uptrend';
     if (bearishSignals >= 2) return 'downtrend';
     
