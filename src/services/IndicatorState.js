@@ -92,7 +92,11 @@ class IndicatorState {
     state.sum += close;
 
     if (state.buffer.length > period) {
-      state.sum -= state.buffer.shift();
+      state.sum -= state.buffer[state.buffer.length - 1 - period];
+    }
+
+    if (state.buffer.length > period * 2) {
+      state.buffer.splice(0, period);
     }
 
     state.value = state.buffer.length >= period ? state.sum / period : null;
