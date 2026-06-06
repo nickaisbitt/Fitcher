@@ -4472,6 +4472,7 @@ function KrakenTradingBot() {
 
           <div className="flex items-center gap-3">
             <button
+              aria-label={settings.soundEnabled ? "Disable sound alerts" : "Enable sound alerts"}
               onClick={() => setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
               className={`p-2 rounded-lg transition ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
             >
@@ -4543,8 +4544,10 @@ function KrakenTradingBot() {
                 </button>
                 {mode === 'live' && (
                   <div className="space-y-2 pt-2 border-t border-slate-700">
-                    <input type="password" placeholder="API Key" value={settings.apiKey} onChange={e => setSettings(s => ({ ...s, apiKey: e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-2.5 text-sm" />
-                    <input type="password" placeholder="API Secret" value={settings.apiSecret} onChange={e => setSettings(s => ({ ...s, apiSecret: e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-2.5 text-sm" />
+                    <label htmlFor="settings-api-key" className="sr-only">API Key</label>
+                    <input id="settings-api-key" type="password" placeholder="API Key" value={settings.apiKey} onChange={e => setSettings(s => ({ ...s, apiKey: e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-2.5 text-sm" />
+                    <label htmlFor="settings-api-secret" className="sr-only">API Secret</label>
+                    <input id="settings-api-secret" type="password" placeholder="API Secret" value={settings.apiSecret} onChange={e => setSettings(s => ({ ...s, apiSecret: e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-2.5 text-sm" />
                     <button
                       onClick={async () => {
                         if (!settings.apiKey || !settings.apiSecret) {
@@ -4580,7 +4583,9 @@ function KrakenTradingBot() {
                 {/* OpenRouter AI Section */}
                 <div className="space-y-2 pt-2 border-t border-slate-700 mt-2">
                   <div className="text-xs text-purple-400 font-medium">🧠 AI Analysis (OpenRouter)</div>
+                  <label htmlFor="settings-openrouter-key" className="sr-only">OpenRouter API Key</label>
                   <input
+                    id="settings-openrouter-key"
                     type="password"
                     placeholder="OpenRouter API Key"
                     value={settings.openRouterKey}
@@ -4615,12 +4620,12 @@ function KrakenTradingBot() {
                 </select>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs text-slate-500">Stop Loss %</label>
-                    <input type="number" value={settings.stopLoss} onChange={e => setSettings(s => ({ ...s, stopLoss: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
+                    <label htmlFor="settings-stop-loss" className="text-xs text-slate-500">Stop Loss %</label>
+                    <input id="settings-stop-loss" type="number" value={settings.stopLoss} onChange={e => setSettings(s => ({ ...s, stopLoss: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500">Take Profit %</label>
-                    <input type="number" value={settings.takeProfit} onChange={e => setSettings(s => ({ ...s, takeProfit: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
+                    <label htmlFor="settings-take-profit" className="text-xs text-slate-500">Take Profit %</label>
+                    <input id="settings-take-profit" type="number" value={settings.takeProfit} onChange={e => setSettings(s => ({ ...s, takeProfit: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
                   </div>
                 </div>
               </div>
@@ -4629,11 +4634,11 @@ function KrakenTradingBot() {
               <div className="space-y-3">
                 <div className="text-sm text-slate-400 font-medium">Risk Management</div>
                 <div>
-                  <label className="text-xs text-slate-500">Trade Size: {settings.tradeSize}%</label>
-                  <input type="range" min="10" max="100" step="5" value={settings.tradeSize} onChange={e => setSettings(s => ({ ...s, tradeSize: +e.target.value }))} className="w-full" />
+                  <label htmlFor="settings-trade-size" className="text-xs text-slate-500">Trade Size: {settings.tradeSize}%</label>
+                  <input id="settings-trade-size" type="range" min="10" max="100" step="5" value={settings.tradeSize} onChange={e => setSettings(s => ({ ...s, tradeSize: +e.target.value }))} className="w-full" />
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={settings.trailingStop} onChange={e => setSettings(s => ({ ...s, trailingStop: e.target.checked }))} className="rounded" />
+                <label htmlFor="cb-trailing-stop" className="flex items-center gap-2 cursor-pointer">
+                  <input id="cb-trailing-stop" type="checkbox" checked={settings.trailingStop} onChange={e => setSettings(s => ({ ...s, trailingStop: e.target.checked }))} className="rounded" />
                   <span className="text-sm">Trailing Stop ({settings.trailingPercent}%)</span>
                 </label>
               </div>
@@ -4991,18 +4996,16 @@ function KrakenTradingBot() {
                     <div className="text-sm font-medium text-cyan-400">⏱️ Backtest Time Period</div>
 
                     <div className="flex items-center gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
+                      <label htmlFor="cb-hours-ago" className="flex items-center gap-2 cursor-pointer">
+                        <input id="cb-hours-ago" type="radio"
                           checked={!backtestConfig.useCustomDate}
                           onChange={() => setBacktestConfig(c => ({ ...c, useCustomDate: false }))}
                           className="text-cyan-500"
                         />
                         <span className="text-sm">Hours ago</span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
+                      <label htmlFor="cb-custom-dates" className="flex items-center gap-2 cursor-pointer">
+                        <input id="cb-custom-dates" type="radio"
                           checked={backtestConfig.useCustomDate}
                           onChange={() => setBacktestConfig(c => ({ ...c, useCustomDate: true }))}
                           className="text-cyan-500"
@@ -5014,8 +5017,8 @@ function KrakenTradingBot() {
                     {!backtestConfig.useCustomDate ? (
                       <div className="flex items-center gap-4">
                         <div>
-                          <label className="text-xs text-slate-500">Hours back</label>
-                          <input
+                          <label htmlFor="bt-hours-back" className="text-xs text-slate-500">Hours back</label>
+                          <input id="bt-hours-back"
                             type="number"
                             value={backtestConfig.hoursBack}
                             onChange={e => setBacktestConfig(c => ({ ...c, hoursBack: parseInt(e.target.value) || 36 }))}
@@ -5038,8 +5041,8 @@ function KrakenTradingBot() {
                     ) : (
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="text-xs text-slate-500">Start Date/Time</label>
-                          <input
+                          <label htmlFor="bt-start-date" className="text-xs text-slate-500">Start Date/Time</label>
+                          <input id="bt-start-date"
                             type="datetime-local"
                             value={backtestConfig.customStartDate}
                             onChange={e => setBacktestConfig(c => ({ ...c, customStartDate: e.target.value }))}
@@ -5047,8 +5050,8 @@ function KrakenTradingBot() {
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-slate-500">End Date/Time (optional)</label>
-                          <input
+                          <label htmlFor="bt-end-date" className="text-xs text-slate-500">End Date/Time (optional)</label>
+                          <input id="bt-end-date"
                             type="datetime-local"
                             value={backtestConfig.customEndDate}
                             onChange={e => setBacktestConfig(c => ({ ...c, customEndDate: e.target.value }))}
@@ -5217,8 +5220,8 @@ function KrakenTradingBot() {
                     <div className="text-sm font-medium mb-3">⚙️ Simulation Parameters</div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
-                        <label className="text-xs text-slate-400">Monte Carlo Iterations</label>
-                        <select
+                        <label htmlFor="sim-monte-carlo-iterations" className="text-xs text-slate-400">Monte Carlo Iterations</label>
+                        <select id="sim-monte-carlo-iterations"
                           value={simulationConfig.monteCarloIterations}
                           onChange={e => setSimulationConfig(s => ({ ...s, monteCarloIterations: parseInt(e.target.value) }))}
                           className="w-full bg-slate-800 rounded px-2 py-1.5 text-sm mt-1"
@@ -5230,8 +5233,8 @@ function KrakenTradingBot() {
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400">Confidence Level</label>
-                        <select
+                        <label htmlFor="sim-confidence-level" className="text-xs text-slate-400">Confidence Level</label>
+                        <select id="sim-confidence-level"
                           value={simulationConfig.confidenceLevel}
                           onChange={e => setSimulationConfig(s => ({ ...s, confidenceLevel: parseInt(e.target.value) }))}
                           className="w-full bg-slate-800 rounded px-2 py-1.5 text-sm mt-1"
@@ -5241,18 +5244,16 @@ function KrakenTradingBot() {
                           <option value="99">99%</option>
                         </select>
                       </div>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
+                      <label htmlFor="cb-include-slippage" className="flex items-center gap-2 cursor-pointer">
+                        <input id="cb-include-slippage" type="checkbox"
                           checked={simulationConfig.includeSlippage}
                           onChange={e => setSimulationConfig(s => ({ ...s, includeSlippage: e.target.checked }))}
                           className="rounded"
                         />
                         <span className="text-sm">Include Slippage</span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
+                      <label htmlFor="cb-include-fees" className="flex items-center gap-2 cursor-pointer">
+                        <input id="cb-include-fees" type="checkbox"
                           checked={simulationConfig.includeFees}
                           onChange={e => setSimulationConfig(s => ({ ...s, includeFees: e.target.checked }))}
                           className="rounded"
@@ -5537,12 +5538,12 @@ function KrakenTradingBot() {
                       <div className="text-sm text-slate-400">Real-time market analysis & pattern detection</div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={aiEnabled} onChange={e => setAiEnabled(e.target.checked)} className="rounded" />
+                      <label htmlFor="cb-ai-enabled" className="flex items-center gap-2 cursor-pointer">
+                        <input id="cb-ai-enabled" type="checkbox" checked={aiEnabled} onChange={e => setAiEnabled(e.target.checked)} className="rounded" />
                         <span className="text-sm">AI Enabled</span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={autoStrategy} onChange={e => setAutoStrategy(e.target.checked)} className="rounded" />
+                      <label htmlFor="cb-auto-switch-strategy" className="flex items-center gap-2 cursor-pointer">
+                        <input id="cb-auto-switch-strategy" type="checkbox" checked={autoStrategy} onChange={e => setAutoStrategy(e.target.checked)} className="rounded" />
                         <span className="text-sm">Auto-Switch Strategy</span>
                       </label>
                     </div>
@@ -5971,8 +5972,8 @@ function KrakenTradingBot() {
                       <div className="font-semibold">🏆 Pro Strategies</div>
                       <div className="text-sm text-slate-400">Legendary trader rules for maximum profit growth</div>
                     </div>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={proStrategiesEnabled} onChange={e => setProStrategiesEnabled(e.target.checked)} className="rounded" />
+                    <label htmlFor="cb-enable-pro-rules" className="flex items-center gap-2 cursor-pointer">
+                      <input id="cb-enable-pro-rules" type="checkbox" checked={proStrategiesEnabled} onChange={e => setProStrategiesEnabled(e.target.checked)} className="rounded" />
                       <span className="text-sm">Enable Pro Rules</span>
                     </label>
                   </div>
@@ -5984,10 +5985,9 @@ function KrakenTradingBot() {
                       <div>
                         <div className="text-xs text-slate-500">Mathematically optimal bet sizing for geometric growth</div>
                         <div className="mt-2 flex items-center gap-4">
-                          <label className="flex items-center gap-2 text-sm">
+                          <label htmlFor="sel-kelly-fraction-" className="flex items-center gap-2 text-sm">
                             <span className="text-slate-400">Kelly Fraction:</span>
-                            <select
-                              value={proStrategySettings.kellyFraction}
+                            <select id="sel-kelly-fraction-" value={proStrategySettings.kellyFraction}
                               onChange={e => setProStrategySettings(s => ({ ...s, kellyFraction: parseFloat(e.target.value) }))}
                               className="bg-slate-800 rounded px-2 py-1 text-sm"
                             >
@@ -6072,10 +6072,9 @@ function KrakenTradingBot() {
                         <div className="text-xs text-slate-500">Only trade when risk/reward is heavily skewed</div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 text-sm">
+                        <label htmlFor="sel-xs-min-r-r" className="flex items-center gap-2 text-sm">
                           <span className="text-xs text-slate-400">Min R:R</span>
-                          <select
-                            value={proStrategySettings.minRiskReward}
+                          <select id="sel-xs-min-r-r" value={proStrategySettings.minRiskReward}
                             onChange={e => setProStrategySettings(s => ({ ...s, minRiskReward: parseFloat(e.target.value) }))}
                             className="bg-slate-800 rounded px-2 py-1 text-xs"
                           >
@@ -6335,8 +6334,8 @@ function KrakenTradingBot() {
                     <div className="text-sm font-medium mb-3">⚙️ Risk Parameters</div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       <div>
-                        <label className="text-xs text-slate-400">Daily Loss Limit (%)</label>
-                        <input
+                        <label htmlFor="risk-daily-loss-limit" className="text-xs text-slate-400">Daily Loss Limit (%)</label>
+                        <input id="risk-daily-loss-limit"
                           type="number"
                           value={riskManagement.dailyLossLimit * 100}
                           onChange={e => setRiskManagement(r => ({ ...r, dailyLossLimit: parseFloat(e.target.value) / 100 }))}
@@ -6345,8 +6344,8 @@ function KrakenTradingBot() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400">Max Consecutive Losses</label>
-                        <input
+                        <label htmlFor="risk-max-consecutive-losses" className="text-xs text-slate-400">Max Consecutive Losses</label>
+                        <input id="risk-max-consecutive-losses"
                           type="number"
                           value={riskManagement.maxConsecutiveLosses}
                           onChange={e => setRiskManagement(r => ({ ...r, maxConsecutiveLosses: parseInt(e.target.value) }))}
@@ -6355,8 +6354,8 @@ function KrakenTradingBot() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400">Cooldown Minutes</label>
-                        <input
+                        <label htmlFor="risk-cooldown-minutes" className="text-xs text-slate-400">Cooldown Minutes</label>
+                        <input id="risk-cooldown-minutes"
                           type="number"
                           value={riskManagement.cooldownMinutes}
                           onChange={e => setRiskManagement(r => ({ ...r, cooldownMinutes: parseInt(e.target.value) }))}
@@ -6365,8 +6364,8 @@ function KrakenTradingBot() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400">Base Slippage (%)</label>
-                        <input
+                        <label htmlFor="risk-base-slippage" className="text-xs text-slate-400">Base Slippage (%)</label>
+                        <input id="risk-base-slippage"
                           type="number"
                           value={riskManagement.slippagePercent}
                           onChange={e => setRiskManagement(r => ({ ...r, slippagePercent: parseFloat(e.target.value) }))}
@@ -6375,8 +6374,8 @@ function KrakenTradingBot() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400">Max Open Positions</label>
-                        <input
+                        <label htmlFor="risk-max-open-positions" className="text-xs text-slate-400">Max Open Positions</label>
+                        <input id="risk-max-open-positions"
                           type="number"
                           value={riskManagement.maxOpenPositions}
                           onChange={e => setRiskManagement(r => ({ ...r, maxOpenPositions: parseInt(e.target.value) }))}
@@ -6385,8 +6384,8 @@ function KrakenTradingBot() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400">Max Correlated (%)</label>
-                        <input
+                        <label htmlFor="risk-max-correlated" className="text-xs text-slate-400">Max Correlated (%)</label>
+                        <input id="risk-max-correlated"
                           type="number"
                           value={riskManagement.maxCorrelatedExposure * 100}
                           onChange={e => setRiskManagement(r => ({ ...r, maxCorrelatedExposure: parseFloat(e.target.value) / 100 }))}
@@ -6441,9 +6440,8 @@ function KrakenTradingBot() {
                   <div className="bg-slate-900/50 rounded-xl p-4">
                     <div className="text-sm font-medium mb-3">🔔 Notifications</div>
                     <div className="flex flex-wrap gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
+                      <label htmlFor="cb-desktop-notifications" className="flex items-center gap-2 cursor-pointer">
+                        <input id="cb-desktop-notifications" type="checkbox"
                           checked={notifications.desktopEnabled}
                           onChange={e => {
                             setNotifications(n => ({ ...n, desktopEnabled: e.target.checked }));
@@ -6455,18 +6453,16 @@ function KrakenTradingBot() {
                         />
                         <span className="text-sm">Desktop Notifications</span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
+                      <label htmlFor="cb-sound-alerts" className="flex items-center gap-2 cursor-pointer">
+                        <input id="cb-sound-alerts" type="checkbox"
                           checked={notifications.soundEnabled}
                           onChange={e => setNotifications(n => ({ ...n, soundEnabled: e.target.checked }))}
                           className="rounded"
                         />
                         <span className="text-sm">Sound Alerts</span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
+                      <label htmlFor="cb-critical-only" className="flex items-center gap-2 cursor-pointer">
+                        <input id="cb-critical-only" type="checkbox"
                           checked={notifications.criticalAlertsOnly}
                           onChange={e => setNotifications(n => ({ ...n, criticalAlertsOnly: e.target.checked }))}
                           className="rounded"
@@ -6489,12 +6485,12 @@ function KrakenTradingBot() {
                 <div className="h-64 overflow-y-auto">
                   {trades.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center py-8">
-                      <div className="text-4xl mb-3">📊</div>
-                      <div className="text-lg font-medium text-slate-300 mb-1">No trades executed yet</div>
-                      <div className="text-sm text-slate-500 mb-4 max-w-xs">Start the trading bot or run a backtest to see your trading history here.</div>
+                      <div className="text-5xl mb-4">📊</div>
+                      <h3 className="text-xl font-semibold text-white mb-2">Your trade history is empty</h3>
+                      <p className="text-sm text-slate-400 max-w-sm mb-6">You haven't executed any trades yet. Start the bot or run a historical backtest to see how your strategy would perform.</p>
                       <button
                         onClick={() => setActiveTab('backtest')}
-                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                        className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white rounded-xl text-sm font-bold transition-all shadow-lg focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
                       >
                         Run a Backtest
                       </button>
@@ -6739,6 +6735,7 @@ function KrakenTradingBot() {
                             </div>
 
                             <button
+                                aria-label={isLogin ? 'Sign In' : 'Create Account'}
                                 type="submit"
                                 disabled={loading}
                                 className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 rounded-xl font-semibold text-white transition disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none flex justify-center items-center gap-2"
