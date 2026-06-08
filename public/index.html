@@ -4472,8 +4472,9 @@ function KrakenTradingBot() {
 
           <div className="flex items-center gap-3">
             <button
+              aria-label={settings.soundEnabled ? 'Disable sound alerts' : 'Enable sound alerts'}
               onClick={() => setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
-              className={`p-2 rounded-lg transition ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
+              className={`p-2 rounded-lg transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
             >
               {settings.soundEnabled ? '🔊' : '🔇'}
             </button>
@@ -5667,14 +5668,16 @@ function KrakenTradingBot() {
                         <button
                           onClick={runAiStrategyOptimizer}
                           disabled={isAiAnalyzing || trades.length < 5}
-                          className="px-3 py-1.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded-lg text-xs hover:bg-violet-500/30 transition disabled:opacity-50"
+                          title={trades.length < 5 ? "Need at least 5 trades to optimize strategy" : "Run AI strategy optimization"}
+                          className="px-3 py-1.5 bg-violet-500/20 text-violet-400 border border-violet-500/30 rounded-lg text-xs hover:bg-violet-500/30 transition disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-violet-500 focus:outline-none"
                         >
                           💡 Improve Strategy
                         </button>
                         <button
                           onClick={runAiAnalysis}
                           disabled={isAiAnalyzing || !settings.openRouterKey}
-                          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition ${
+                          title={!settings.openRouterKey ? "OpenRouter API Key required in Settings" : "Run AI analysis"}
+                          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition focus-visible:ring-2 focus-visible:ring-purple-500 focus:outline-none ${
                             isAiAnalyzing ? 'bg-purple-500/30 text-purple-300' :
                             settings.openRouterKey ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600' :
                             'bg-slate-700 text-slate-400'
@@ -6402,7 +6405,17 @@ function KrakenTradingBot() {
                     <div className="text-sm font-medium mb-3">📊 Position Exposure</div>
                     <div className="space-y-2">
                       {Object.keys(positions).length === 0 ? (
-                        <div className="text-slate-500 text-sm">No open positions</div>
+                        <div className="flex flex-col items-center justify-center text-center py-6 bg-slate-800/30 rounded-xl border border-slate-700/50">
+                          <div className="text-3xl mb-2">📉</div>
+                          <div className="text-sm font-medium text-slate-300 mb-1">No open positions</div>
+                          <div className="text-xs text-slate-500 mb-3 max-w-[200px]">Active trades will appear here. Find opportunities in the market.</div>
+                          <button
+                            onClick={() => setActiveTab('market')}
+                            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-cyan-400 rounded-lg text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                          >
+                            View Market
+                          </button>
+                        </div>
                       ) : (
                         Object.entries(positions).map(([pair, pos]) => {
                           const currentPrice = prices[pair] || BASE_PRICES[pair];
@@ -6624,7 +6637,17 @@ function KrakenTradingBot() {
                     </button>
                   </div>
                 ) : (
-                  <div className="text-slate-500 text-center py-6">No open position</div>
+                  <div className="flex flex-col items-center justify-center text-center py-6">
+                    <div className="text-3xl mb-2">📉</div>
+                    <div className="text-sm font-medium text-slate-300 mb-1">No open position</div>
+                    <div className="text-xs text-slate-500 mb-3 max-w-[200px]">Active trades will appear here. Find opportunities in the market.</div>
+                    <button
+                      onClick={() => setActiveTab('market')}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                    >
+                      View Market
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
