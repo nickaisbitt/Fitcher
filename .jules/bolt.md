@@ -1,3 +1,6 @@
 ## 2024-05-06 - Replacing O(N²) array operations
 **Learning:** Heavy use of `Array.shift()`, object spreading (`...obj`), and multiple `.reduce()` chained loops within `for` loops in Node.js creates significant GC thrashing and O(N²) complexity loops, forming a substantial bottleneck on performance paths like BacktestEngine execution.
 **Action:** Replace `.shift()` with index pointers, `.splice()` for bulk deletion, and replace `.reduce()`/`.filter()` chaining with single pass loops.
+## 2025-01-29 - Array methods optimization
+**Learning:** Chaining array methods like `filter().map().sort()` or performing multiple `.reduce()` traversals creates intermediate arrays and causes unnecessary GC pressure. `getLatencyStats` took ~5ms per 10k items with chained methods but ~1.4ms with a single pass using a pre-allocated `Float64Array`. Standard deviation calculations using `map` and `reduce` are slower than Welford's online algorithm (a single pass loop).
+**Action:** Use single-pass `for` loops to accumulate state or count values. Use `new Float64Array(size)` to pre-allocate numeric arrays where the length is known, especially before sorting, to bypass object creation entirely and leverage fast typed numerical sorting. Use Welford's online algorithm for standard deviation/variance.
