@@ -177,16 +177,20 @@ class SignalAggregator {
       };
     });
 
-    // Calculate weighted average confidence
-    const totalWeight = weightedSignals.reduce((sum, s) => sum + s.weight, 0);
-    const weightedConfidence = weightedSignals.reduce(
-      (sum, s) => sum + (s.confidence * s.weight), 0
-    ) / totalWeight;
+    // Calculate weighted averages in a single pass
+    let totalWeight = 0;
+    let sumConfidence = 0;
+    let sumSize = 0;
 
-    // Combine position sizes (weighted average)
-    const weightedSize = weightedSignals.reduce(
-      (sum, s) => sum + ((s.amount || 0) * s.weight), 0
-    ) / totalWeight;
+    for (let i = 0; i < weightedSignals.length; i++) {
+      const s = weightedSignals[i];
+      totalWeight += s.weight;
+      sumConfidence += s.confidence * s.weight;
+      sumSize += (s.amount || 0) * s.weight;
+    }
+
+    const weightedConfidence = sumConfidence / totalWeight;
+    const weightedSize = sumSize / totalWeight;
 
     // Combine reasons
     const allReasons = weightedSignals.map(s => `${s.strategy}: ${s.reason}`);
