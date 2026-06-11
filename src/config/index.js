@@ -37,6 +37,12 @@ const config = {
   LOG_LEVEL: process.env.LOG_LEVEL || 'info'
 };
 
+// Validate FRONTEND_URL to forbid wildcard origins
+if (config.FRONTEND_URL === '*') {
+  console.error('FRONTEND_URL cannot be a wildcard (*) for security reasons.');
+  process.exit(1);
+}
+
 // Validate required environment variables
 const requiredVars = ['DATABASE_URL', 'JWT_SECRET'];
 const missingVars = requiredVars.filter(varName => !config[varName]);
