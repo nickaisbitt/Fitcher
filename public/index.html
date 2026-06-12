@@ -4472,8 +4472,10 @@ function KrakenTradingBot() {
 
           <div className="flex items-center gap-3">
             <button
+              aria-label={settings.soundEnabled ? "Disable sound alerts" : "Enable sound alerts"}
               onClick={() => setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
-              className={`p-2 rounded-lg transition ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
+              className={`p-2 rounded-lg transition ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'} focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none`}
+              title={settings.soundEnabled ? "Disable sound alerts" : "Enable sound alerts"}
             >
               {settings.soundEnabled ? '🔊' : '🔇'}
             </button>
@@ -5523,7 +5525,17 @@ function KrakenTradingBot() {
                   )}
 
                   {scanResults.length === 0 && !isScanning && (
-                    <div className="text-center text-slate-500 py-8">Click "Scan Now" to find trading signals</div>
+                    <div className="flex flex-col items-center justify-center text-center py-12">
+                      <div className="text-4xl mb-4 text-cyan-400 opacity-50">🔍</div>
+                      <div className="text-lg font-semibold text-slate-300 mb-2">Ready to Scan the Market</div>
+                      <div className="text-sm text-slate-400 max-w-sm mb-6">Discover real-time trading opportunities across all available pairs using your current strategy.</div>
+                      <button
+                        onClick={runScanner}
+                        className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                      >
+                        Start Market Scan
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -5660,9 +5672,10 @@ function KrakenTradingBot() {
                         <button
                           onClick={fetchNewsSentiment}
                           disabled={isAiAnalyzing}
-                          className="px-3 py-1.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-lg text-xs hover:bg-indigo-500/30 transition disabled:opacity-50"
+                          className="px-3 py-1.5 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-lg text-xs hover:bg-indigo-500/30 transition disabled:opacity-50 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-indigo-500 focus:outline-none"
                         >
-                          📰 News
+                          {isAiAnalyzing ? <span className="animate-spin" aria-hidden="true">⏳</span> : <span aria-hidden="true">📰</span>}
+                          News
                         </button>
                         <button
                           onClick={runAiStrategyOptimizer}
@@ -6691,8 +6704,13 @@ function KrakenTradingBot() {
                         </div>
 
                         {error && (
-                            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm">
-                                {error}
+                            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm flex items-start gap-2" role="alert">
+                                <span aria-hidden="true">⚠️</span>
+                                <div>
+                                    <p className="font-semibold">Authentication Error</p>
+                                    <p>{error}</p>
+                                    <p className="text-xs mt-1 text-red-300 opacity-80">Please check your credentials and try again.</p>
+                                </div>
                             </div>
                         )}
 
