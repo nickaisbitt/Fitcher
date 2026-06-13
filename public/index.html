@@ -4425,6 +4425,15 @@ function KrakenTradingBot() {
     };
   }, []);
 
+  // ==================== KEYBOARD SHORTCUTS ====================
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setShowSettings(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // ==================== DERIVED VALUES ====================
   const currentPrice = prices[selectedPair]?.price || 0;
   const currentChange = prices[selectedPair]?.change24h || 0;
@@ -4472,6 +4481,7 @@ function KrakenTradingBot() {
 
           <div className="flex items-center gap-3">
             <button
+              aria-label={settings.soundEnabled ? 'Disable sound alerts' : 'Enable sound alerts'}
               onClick={() => setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
               className={`p-2 rounded-lg transition ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
             >
@@ -5014,8 +5024,9 @@ function KrakenTradingBot() {
                     {!backtestConfig.useCustomDate ? (
                       <div className="flex items-center gap-4">
                         <div>
-                          <label className="text-xs text-slate-500">Hours back</label>
+                          <label htmlFor="hours-back" className="text-xs text-slate-500">Hours back</label>
                           <input
+                            id="hours-back"
                             type="number"
                             value={backtestConfig.hoursBack}
                             onChange={e => setBacktestConfig(c => ({ ...c, hoursBack: parseInt(e.target.value) || 36 }))}
@@ -5038,8 +5049,9 @@ function KrakenTradingBot() {
                     ) : (
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="text-xs text-slate-500">Start Date/Time</label>
+                          <label htmlFor="start-date" className="text-xs text-slate-500">Start Date/Time</label>
                           <input
+                            id="start-date"
                             type="datetime-local"
                             value={backtestConfig.customStartDate}
                             onChange={e => setBacktestConfig(c => ({ ...c, customStartDate: e.target.value }))}
@@ -5047,8 +5059,9 @@ function KrakenTradingBot() {
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-slate-500">End Date/Time (optional)</label>
+                          <label htmlFor="end-date" className="text-xs text-slate-500">End Date/Time (optional)</label>
                           <input
+                            id="end-date"
                             type="datetime-local"
                             value={backtestConfig.customEndDate}
                             onChange={e => setBacktestConfig(c => ({ ...c, customEndDate: e.target.value }))}
@@ -5523,7 +5536,18 @@ function KrakenTradingBot() {
                   )}
 
                   {scanResults.length === 0 && !isScanning && (
-                    <div className="text-center text-slate-500 py-8">Click "Scan Now" to find trading signals</div>
+                    <div className="flex flex-col items-center justify-center text-center py-12 bg-slate-900/30 rounded-xl border border-slate-800/50">
+                      <div className="text-4xl mb-3">🔍</div>
+                      <div className="text-lg font-medium text-slate-300 mb-1">Ready to Scan</div>
+                      <div className="text-sm text-slate-500 mb-4 max-w-xs">Scan all pairs to find trading signals and potential opportunities.</div>
+                      <button
+                        onClick={runScanner}
+                        disabled={isScanning}
+                        className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                      >
+                        Run Scan Now
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
