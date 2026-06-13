@@ -62,7 +62,7 @@ class MarketDataController {
   // GET /api/market/price/:pair - Get current price for a pair
   getPrice = asyncHandler(async (req, res) => {
     const { pair } = req.params;
-    const { exchange } = req.query;
+    const exchange = req.query.exchange !== undefined ? String(req.query.exchange) : undefined;
 
     await this.initialize();
 
@@ -129,7 +129,8 @@ class MarketDataController {
   // GET /api/market/orderbook/:pair - Get order book for a pair
   getOrderBook = asyncHandler(async (req, res) => {
     const { pair } = req.params;
-    const { exchange, depth = 100 } = req.query;
+    const exchange = req.query.exchange !== undefined ? String(req.query.exchange) : undefined;
+    const depth = req.query.depth !== undefined ? req.query.depth : 100;
 
     await this.initialize();
 
@@ -163,7 +164,8 @@ class MarketDataController {
   // GET /api/market/trades/:pair - Get recent trades for a pair
   getRecentTrades = asyncHandler(async (req, res) => {
     const { pair } = req.params;
-    const { exchange, limit = 100 } = req.query;
+    const exchange = req.query.exchange !== undefined ? String(req.query.exchange) : undefined;
+    const limit = req.query.limit !== undefined ? req.query.limit : 100;
 
     await this.initialize();
 
@@ -254,7 +256,8 @@ class MarketDataController {
 
   // POST /api/market/subscribe - Subscribe to real-time market data
   subscribe = asyncHandler(async (req, res) => {
-    const { type, pair } = req.body;
+    const type = req.body.type !== undefined ? String(req.body.type) : undefined;
+    const pair = req.body.pair !== undefined ? String(req.body.pair) : undefined;
 
     await this.initialize();
 
@@ -275,7 +278,8 @@ class MarketDataController {
 
   // POST /api/market/unsubscribe - Unsubscribe from real-time market data
   unsubscribe = asyncHandler(async (req, res) => {
-    const { type, pair } = req.body;
+    const type = req.body.type !== undefined ? String(req.body.type) : undefined;
+    const pair = req.body.pair !== undefined ? String(req.body.pair) : undefined;
 
     await this.initialize();
 
