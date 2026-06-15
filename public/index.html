@@ -4472,6 +4472,7 @@ function KrakenTradingBot() {
 
           <div className="flex items-center gap-3">
             <button
+              aria-label={settings.soundEnabled ? "Disable sound alerts" : "Enable sound alerts"}
               onClick={() => setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
               className={`p-2 rounded-lg transition ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
             >
@@ -5523,7 +5524,17 @@ function KrakenTradingBot() {
                   )}
 
                   {scanResults.length === 0 && !isScanning && (
-                    <div className="text-center text-slate-500 py-8">Click "Scan Now" to find trading signals</div>
+                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <div className="text-4xl mb-3 opacity-50">🔍</div>
+                      <div className="text-lg font-medium text-slate-300 mb-1">No Signals Found</div>
+                      <div className="text-sm text-slate-500 mb-4 max-w-xs">Run a scan across all trading pairs to find new opportunities based on your strategy.</div>
+                      <button
+                        onClick={runScanner}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                      >
+                        Start Market Scan
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -5623,7 +5634,17 @@ function KrakenTradingBot() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center text-slate-500 py-4">No patterns detected - fetch historical data first</div>
+                      <div className="flex flex-col items-center justify-center py-6 text-center">
+                        <div className="text-3xl mb-2 opacity-50">📉</div>
+                        <div className="text-sm font-medium text-slate-300 mb-1">Awaiting Data</div>
+                        <div className="text-xs text-slate-500 mb-3 max-w-[200px]">Fetch historical data to detect candlestick patterns.</div>
+                        <button
+                          onClick={() => fetchHistoricalData(selectedPair, timeframe)}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                        >
+                          Fetch Data
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -6402,7 +6423,25 @@ function KrakenTradingBot() {
                     <div className="text-sm font-medium mb-3">📊 Position Exposure</div>
                     <div className="space-y-2">
                       {Object.keys(positions).length === 0 ? (
-                        <div className="text-slate-500 text-sm">No open positions</div>
+                        <div className="flex flex-col items-center justify-center py-6 text-center">
+                    <div className="text-3xl mb-2 opacity-50">💼</div>
+                    <div className="text-sm font-medium text-slate-300 mb-1">No Active Position</div>
+                    <div className="text-xs text-slate-500 mb-3 max-w-[200px]">The bot is waiting for a signal, or start one manually.</div>
+                    <div className="flex gap-2">
+                        <button
+                          onClick={() => executeTrade('buy', selectedPair, 'Manual Entry')}
+                          className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-emerald-500 focus:outline-none"
+                        >
+                          Buy Market
+                        </button>
+                        <button
+                          onClick={() => executeTrade('sell', selectedPair, 'Manual Entry')}
+                          className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-red-500 focus:outline-none"
+                        >
+                          Sell Market
+                        </button>
+                    </div>
+                  </div>
                       ) : (
                         Object.entries(positions).map(([pair, pos]) => {
                           const currentPrice = prices[pair] || BASE_PRICES[pair];
@@ -6624,7 +6663,25 @@ function KrakenTradingBot() {
                     </button>
                   </div>
                 ) : (
-                  <div className="text-slate-500 text-center py-6">No open position</div>
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                    <div className="text-3xl mb-2 opacity-50">💼</div>
+                    <div className="text-sm font-medium text-slate-300 mb-1">No Active Position</div>
+                    <div className="text-xs text-slate-500 mb-3 max-w-[200px]">The bot is waiting for a signal, or start one manually.</div>
+                    <div className="flex gap-2">
+                        <button
+                          onClick={() => executeTrade('buy', selectedPair, 'Manual Entry')}
+                          className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-emerald-500 focus:outline-none"
+                        >
+                          Buy Market
+                        </button>
+                        <button
+                          onClick={() => executeTrade('sell', selectedPair, 'Manual Entry')}
+                          className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-red-500 focus:outline-none"
+                        >
+                          Sell Market
+                        </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
