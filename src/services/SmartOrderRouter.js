@@ -270,8 +270,17 @@ class SmartOrderRouter {
       }
       
       // Calculate standard deviation
-      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-      const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+      let returnsSum = 0;
+      for (let i = 0; i < returns.length; i++) {
+        returnsSum += returns[i];
+      }
+      const mean = returnsSum / returns.length;
+
+      let varianceSum = 0;
+      for (let i = 0; i < returns.length; i++) {
+        varianceSum += Math.pow(returns[i] - mean, 2);
+      }
+      const variance = varianceSum / returns.length;
       const stdDev = Math.sqrt(variance);
       
       return stdDev;
