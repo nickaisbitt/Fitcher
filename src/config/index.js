@@ -50,4 +50,9 @@ if (missingVars.length > 0) {
   }
 }
 
+if (config.FRONTEND_URL === '*') {
+  console.error('CRITICAL: FRONTEND_URL cannot be set to the wildcard "*" origin.');
+  process.exit(1);
+}
+
 module.exports = config;
