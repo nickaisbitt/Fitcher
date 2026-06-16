@@ -165,48 +165,56 @@ class SignalAggregator {
    * Aggregate signals from one side (all buys or all sells)
    */
   aggregateSide(signals, action) {
-    // Get weights for each strategy
-    const weightedSignals = signals.map(signal => {
+    let totalWeight = 0;
+    let weightedConfidenceSum = 0;
+    let weightedSizeSum = 0;
+
+    const uniqueReasonsSet = new Set();
+    let highestStopLoss = -Infinity;
+    let lowestStopLoss = Infinity;
+    let highestTakeProfit = -Infinity;
+    let lowestTakeProfit = Infinity;
+
+    const weightedSignals = new Array(signals.length);
+
+    for (let i = 0; i < signals.length; i++) {
+      const signal = signals[i];
       const strategyPerf = this.strategyPerformance.get(signal.strategy);
       const baseWeight = this.config.strategyWeights[signal.strategy] || 1.0;
       const perfWeight = strategyPerf ? strategyPerf.weight : 1.0;
+      const weight = baseWeight * perfWeight;
       
-      return {
-        ...signal,
-        weight: baseWeight * perfWeight
-      };
-    });
+      const weightedSignal = { ...signal, weight };
+      weightedSignals[i] = weightedSignal;
 
-    // Calculate weighted average confidence
-    const totalWeight = weightedSignals.reduce((sum, s) => sum + s.weight, 0);
-    const weightedConfidence = weightedSignals.reduce(
-      (sum, s) => sum + (s.confidence * s.weight), 0
-    ) / totalWeight;
+      totalWeight += weight;
+      weightedConfidenceSum += signal.confidence * weight;
+      weightedSizeSum += (signal.amount || 0) * weight;
 
-    // Combine position sizes (weighted average)
-    const weightedSize = weightedSignals.reduce(
-      (sum, s) => sum + ((s.amount || 0) * s.weight), 0
-    ) / totalWeight;
+      uniqueReasonsSet.add(`${signal.strategy}: ${signal.reason}`);
 
-    // Combine reasons
-    const allReasons = weightedSignals.map(s => `${s.strategy}: ${s.reason}`);
-    const uniqueReasons = [...new Set(allReasons)];
+      if (signal.stopLoss !== undefined) {
+        if (signal.stopLoss > highestStopLoss) highestStopLoss = signal.stopLoss;
+        if (signal.stopLoss < lowestStopLoss) lowestStopLoss = signal.stopLoss;
+      }
 
-    // Select best stops (most conservative)
-    const stopLosses = weightedSignals
-      .filter(s => s.stopLoss)
-      .map(s => s.stopLoss);
-    const takeProfits = weightedSignals
-      .filter(s => s.takeProfit)
-      .map(s => s.takeProfit);
+      if (signal.takeProfit !== undefined) {
+        if (signal.takeProfit > highestTakeProfit) highestTakeProfit = signal.takeProfit;
+        if (signal.takeProfit < lowestTakeProfit) lowestTakeProfit = signal.takeProfit;
+      }
+    }
+
+    const weightedConfidence = weightedConfidenceSum / totalWeight;
+    const weightedSize = weightedSizeSum / totalWeight;
+    const uniqueReasons = Array.from(uniqueReasonsSet);
 
     const stopLoss = action === 'buy' 
-      ? Math.max(...stopLosses, 0)  // Highest stop for buys
-      : Math.min(...stopLosses, Infinity); // Lowest stop for sells
+      ? Math.max(highestStopLoss, 0)  // Highest stop for buys
+      : Math.min(lowestStopLoss, Infinity); // Lowest stop for sells
     
     const takeProfit = action === 'buy'
-      ? Math.min(...takeProfits, Infinity)  // Lowest target for buys
-      : Math.max(...takeProfits, 0);        // Highest target for sells
+      ? Math.min(lowestTakeProfit, Infinity)  // Lowest target for buys
+      : Math.max(highestTakeProfit, 0);        // Highest target for sells
 
     return {
       action,
@@ -302,10 +310,19 @@ class SignalAggregator {
    * Resolve by highest individual confidence
    */
   resolveHighestConfidence(buySignals, sellSignals) {
-    const highestBuy = buySignals.reduce((max, s) => 
-      s.confidence > max.confidence ? s : max, buySignals[0]);
-    const highestSell = sellSignals.reduce((max, s) => 
-      s.confidence > max.confidence ? s : max, sellSignals[0]);
+    let highestBuy = buySignals[0];
+    for (let i = 1; i < buySignals.length; i++) {
+      if (buySignals[i].confidence > highestBuy.confidence) {
+        highestBuy = buySignals[i];
+      }
+    }
+
+    let highestSell = sellSignals[0];
+    for (let i = 1; i < sellSignals.length; i++) {
+      if (sellSignals[i].confidence > highestSell.confidence) {
+        highestSell = sellSignals[i];
+      }
+    }
 
     if (highestBuy.confidence > highestSell.confidence) {
       return {
