@@ -197,17 +197,24 @@ class PositionManager {
       }
       
       for (const position of positions) {
-        // Filter trades by period
-        const relevantTrades = cutoffDate 
-          ? position.trades.filter(t => new Date(t.timestamp) >= cutoffDate)
-          : position.trades;
+        let realizedFromTrades = 0;
+        let feesFromTrades = 0;
+        let relevantTradesCount = 0;
         
-        const realizedFromTrades = relevantTrades
-          .filter(t => t.type === 'sell')
-          .reduce((sum, t) => sum + (t.realizedPnL || 0), 0);
-        
-        const feesFromTrades = relevantTrades
-          .reduce((sum, t) => sum + (t.fee || 0), 0);
+        // ⚡ Bolt: Single pass aggregation replaces multiple .filter().reduce() chains.
+        // Also removed expensive new Date() creations within the loop.
+        const cutoffTime = cutoffDate ? cutoffDate.getTime() : 0;
+        for (let j = 0; j < position.trades.length; j++) {
+          const t = position.trades[j];
+          const tradeTime = typeof t.timestamp === 'string' ? new Date(t.timestamp).getTime() : t.timestamp;
+          if (cutoffDate && !(tradeTime >= cutoffTime)) continue;
+
+          relevantTradesCount++;
+          if (t.type === 'sell') {
+            realizedFromTrades += (t.realizedPnL || 0);
+          }
+          feesFromTrades += (t.fee || 0);
+        }
         
         totalRealized += realizedFromTrades;
         totalFees += feesFromTrades;
@@ -224,7 +231,7 @@ class PositionManager {
         
         assetPnL[position.asset].realized += realizedFromTrades;
         assetPnL[position.asset].fees += feesFromTrades;
-        assetPnL[position.asset].trades += relevantTrades.length;
+        assetPnL[position.asset].trades += relevantTradesCount;
       }
       
       return {
