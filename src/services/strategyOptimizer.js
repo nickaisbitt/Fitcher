@@ -302,17 +302,31 @@ class StrategyOptimizer {
    */
   average(values) {
     if (values.length === 0) return 0;
-    return values.reduce((a, b) => a + b, 0) / values.length;
+    let sum = 0;
+    for (let i = 0; i < values.length; i++) {
+      sum += values[i];
+    }
+    return sum / values.length;
   }
 
   /**
-   * Calculate standard deviation
+   * Calculate standard deviation using Welford's online algorithm
    * @param {Array} values - Values array
    */
   stdDev(values) {
     if (values.length < 2) return 0;
-    const avg = this.average(values);
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
+    let count = 0;
+    let mean = 0;
+    let m2 = 0;
+    // ⚡ Bolt: Single-pass Welford's online algorithm for variance.
+    // Avoids catastrophic cancellation and is faster than a 2-pass reduce chain.
+    for (let i = 0; i < values.length; i++) {
+      count++;
+      let delta = values[i] - mean;
+      mean += delta / count;
+      m2 += delta * (values[i] - mean);
+    }
+    const variance = m2 / values.length;
     return Math.sqrt(variance);
   }
 
@@ -357,8 +371,11 @@ class StrategyOptimizer {
     }
     
     // Check for sufficient trades
-    const avgTrades = results.splits.reduce((sum, s) => 
-      sum + (s.testResult?.totalTrades || 0), 0) / results.splits.length;
+    let sumTrades = 0;
+    for (let i = 0; i < results.splits.length; i++) {
+      sumTrades += results.splits[i].testResult?.totalTrades || 0;
+    }
+    const avgTrades = sumTrades / results.splits.length;
     
     if (avgTrades < this.config.minTrades) {
       recommendations.push({
