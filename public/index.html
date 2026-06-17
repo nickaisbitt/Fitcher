@@ -4472,8 +4472,10 @@ function KrakenTradingBot() {
 
           <div className="flex items-center gap-3">
             <button
+              aria-label={settings.soundEnabled ? 'Disable sound alerts' : 'Enable sound alerts'}
+              title={settings.soundEnabled ? 'Disable sound alerts' : 'Enable sound alerts'}
               onClick={() => setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
-              className={`p-2 rounded-lg transition ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
+              className={`p-2 rounded-lg transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
             >
               {settings.soundEnabled ? '🔊' : '🔇'}
             </button>
@@ -4543,8 +4545,10 @@ function KrakenTradingBot() {
                 </button>
                 {mode === 'live' && (
                   <div className="space-y-2 pt-2 border-t border-slate-700">
-                    <input type="password" placeholder="API Key" value={settings.apiKey} onChange={e => setSettings(s => ({ ...s, apiKey: e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-2.5 text-sm" />
-                    <input type="password" placeholder="API Secret" value={settings.apiSecret} onChange={e => setSettings(s => ({ ...s, apiSecret: e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-2.5 text-sm" />
+                    <label htmlFor="apiKey" className="sr-only">API Key</label>
+                    <input id="apiKey" type="password" placeholder="API Key" value={settings.apiKey} onChange={e => setSettings(s => ({ ...s, apiKey: e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-2.5 text-sm focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none" />
+                    <label htmlFor="apiSecret" className="sr-only">API Secret</label>
+                    <input id="apiSecret" type="password" placeholder="API Secret" value={settings.apiSecret} onChange={e => setSettings(s => ({ ...s, apiSecret: e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-xl p-2.5 text-sm focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none" />
                     <button
                       onClick={async () => {
                         if (!settings.apiKey || !settings.apiSecret) {
@@ -4615,12 +4619,12 @@ function KrakenTradingBot() {
                 </select>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs text-slate-500">Stop Loss %</label>
-                    <input type="number" value={settings.stopLoss} onChange={e => setSettings(s => ({ ...s, stopLoss: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
+                    <label htmlFor="stopLoss" className="text-xs text-slate-500">Stop Loss %</label>
+                    <input id="stopLoss" type="number" value={settings.stopLoss} onChange={e => setSettings(s => ({ ...s, stopLoss: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none" />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500">Take Profit %</label>
-                    <input type="number" value={settings.takeProfit} onChange={e => setSettings(s => ({ ...s, takeProfit: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
+                    <label htmlFor="takeProfit" className="text-xs text-slate-500">Take Profit %</label>
+                    <input id="takeProfit" type="number" value={settings.takeProfit} onChange={e => setSettings(s => ({ ...s, takeProfit: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none" />
                   </div>
                 </div>
               </div>
@@ -5523,7 +5527,17 @@ function KrakenTradingBot() {
                   )}
 
                   {scanResults.length === 0 && !isScanning && (
-                    <div className="text-center text-slate-500 py-8">Click "Scan Now" to find trading signals</div>
+                    <div className="flex flex-col items-center justify-center text-center py-12 bg-slate-900/30 rounded-2xl border border-slate-700/30 border-dashed">
+                      <div className="text-4xl mb-3 opacity-80">📡</div>
+                      <div className="text-lg font-medium text-slate-300 mb-1">Ready to Scan</div>
+                      <div className="text-sm text-slate-500 mb-4 max-w-sm">Analyze all available trading pairs simultaneously to discover high-probability setups and real-time signals.</div>
+                      <button
+                        onClick={runScanner}
+                        className="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl text-sm font-semibold hover:from-purple-600 hover:to-pink-600 transition shadow-lg shadow-purple-500/20 focus-visible:ring-2 focus-visible:ring-purple-500 focus:outline-none"
+                      >
+                        Start Market Scan
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
