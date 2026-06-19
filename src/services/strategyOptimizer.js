@@ -310,10 +310,15 @@ class StrategyOptimizer {
    * @param {Array} values - Values array
    */
   stdDev(values) {
-    if (values.length < 2) return 0;
+    const len = values.length;
+    if (len < 2) return 0;
     const avg = this.average(values);
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
-    return Math.sqrt(variance);
+    let varianceSum = 0;
+    for (let i = 0; i < len; i++) {
+      const diff = values[i] - avg;
+      varianceSum += diff * diff;
+    }
+    return Math.sqrt(varianceSum / len);
   }
 
   /**
