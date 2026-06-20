@@ -311,8 +311,19 @@ class StrategyOptimizer {
    */
   stdDev(values) {
     if (values.length < 2) return 0;
-    const avg = this.average(values);
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
+    // ⚡ Bolt Optimization: Use Welford's online algorithm to compute mean and variance
+    // in a single pass instead of looping multiple times with .reduce().
+    let mean = 0;
+    let m2 = 0;
+    for (let i = 0; i < values.length; i++) {
+      const x = values[i];
+      const count = i + 1;
+      const delta = x - mean;
+      mean += delta / count;
+      const delta2 = x - mean;
+      m2 += delta * delta2;
+    }
+    const variance = values.length > 1 ? m2 / values.length : 0;
     return Math.sqrt(variance);
   }
 
@@ -322,9 +333,15 @@ class StrategyOptimizer {
    */
   calculateConsistency(scores) {
     if (scores.length < 2) return 1;
-    const avg = this.average(scores);
+    // ⚡ Bolt Optimization: Use a standard for loop instead of this.average(.reduce())
+    // for calculating the mean.
+    let mean = 0;
+    for (let i = 0; i < scores.length; i++) {
+        mean += scores[i];
+    }
+    mean = mean / scores.length;
     const stdDev = this.stdDev(scores);
-    return avg > 0 ? Math.max(0, 1 - (stdDev / avg)) : 0;
+    return mean > 0 ? Math.max(0, 1 - (stdDev / mean)) : 0;
   }
 
   /**
@@ -357,8 +374,12 @@ class StrategyOptimizer {
     }
     
     // Check for sufficient trades
-    const avgTrades = results.splits.reduce((sum, s) => 
-      sum + (s.testResult?.totalTrades || 0), 0) / results.splits.length;
+    // ⚡ Bolt Optimization: Use a standard for loop instead of .reduce() to prevent GC overhead.
+    let tradesSum = 0;
+    for (let i = 0; i < results.splits.length; i++) {
+      tradesSum += (results.splits[i].testResult?.totalTrades || 0);
+    }
+    const avgTrades = tradesSum / results.splits.length;
     
     if (avgTrades < this.config.minTrades) {
       recommendations.push({

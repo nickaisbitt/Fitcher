@@ -580,14 +580,25 @@ class PaperTradingEngine {
   calculateSharpeRatio(returns) {
     if (returns.length < 2) return 0;
     
-    const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
-    const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+    // ⚡ Bolt Optimization: Use Welford's online algorithm to compute mean and variance
+    // in a single pass instead of looping multiple times with .reduce().
+    let mean = 0;
+    let m2 = 0;
+    for (let i = 0; i < returns.length; i++) {
+      const x = returns[i];
+      const count = i + 1;
+      const delta = x - mean;
+      mean += delta / count;
+      const delta2 = x - mean;
+      m2 += delta * delta2;
+    }
+    const variance = returns.length > 1 ? m2 / returns.length : 0;
     const stdDev = Math.sqrt(variance);
     
     if (stdDev === 0) return 0;
     
     // Annualized Sharpe (assuming daily returns)
-    return (avgReturn / stdDev) * Math.sqrt(365);
+    return (mean / stdDev) * Math.sqrt(365);
   }
 
   /**
