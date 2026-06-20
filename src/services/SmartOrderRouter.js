@@ -270,8 +270,19 @@ class SmartOrderRouter {
       }
       
       // Calculate standard deviation
-      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-      const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+      // ⚡ Bolt Optimization: Use Welford's online algorithm to compute mean and variance
+      // in a single pass instead of looping multiple times with .reduce().
+      let mean = 0;
+      let m2 = 0;
+      for (let i = 0; i < returns.length; i++) {
+        const x = returns[i];
+        const count = i + 1;
+        const delta = x - mean;
+        mean += delta / count;
+        const delta2 = x - mean;
+        m2 += delta * delta2;
+      }
+      const variance = returns.length > 1 ? m2 / returns.length : 0;
       const stdDev = Math.sqrt(variance);
       
       return stdDev;
@@ -291,8 +302,16 @@ class SmartOrderRouter {
       const orderBook = await this.priceFeed.getOrderBook(pair);
       if (!orderBook) return 'medium';
       
-      const totalBidVolume = orderBook.bids.reduce((sum, bid) => sum + bid[1], 0);
-      const totalAskVolume = orderBook.asks.reduce((sum, ask) => sum + ask[1], 0);
+      // ⚡ Bolt Optimization: Replace multiple .reduce() iterations with standard for loops
+      // to calculate total volume and prevent GC thrashing.
+      let totalBidVolume = 0;
+      for (let i = 0; i < orderBook.bids.length; i++) {
+        totalBidVolume += orderBook.bids[i][1];
+      }
+      let totalAskVolume = 0;
+      for (let i = 0; i < orderBook.asks.length; i++) {
+        totalAskVolume += orderBook.asks[i][1];
+      }
       const totalVolume = totalBidVolume + totalAskVolume;
       
       if (totalVolume > 100) return 'high';
