@@ -5,6 +5,7 @@ const SignalAggregator = require('./SignalAggregator');
 const SmartOrderRouter = require('./SmartOrderRouter');
 const DynamicRiskManager = require('./DynamicRiskManager');
 const MarketRegimeDetector = require('./MarketRegimeDetector');
+const { isSafeWebhookUrl } = require('../utils/urlValidator');
 
 /**
  * TradingEngine - Central trading coordination system
@@ -324,6 +325,11 @@ class TradingEngine extends EventEmitter {
             
           case 'webhook':
             try {
+              if (!isSafeWebhookUrl(action.url)) {
+                logger.warn(`Blocked unsafe webhook URL: ${action.url}`);
+                break;
+              }
+
               const fetchOptions = {
                 method: action.method || 'POST',
                 headers: {

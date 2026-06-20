@@ -1,5 +1,6 @@
 const logger = require('../utils/logger');
 const eventBus = require('../utils/eventBus');
+const { isSafeWebhookUrl } = require('../utils/urlValidator');
 
 /**
  * AlertManager - Manages trading alerts and notifications
@@ -285,6 +286,11 @@ Fitcher Trading System
     try {
       const webhookConfig = this.config.webhook;
       if (!webhookConfig || !webhookConfig.enabled || !webhookConfig.url) return;
+
+      if (!isSafeWebhookUrl(webhookConfig.url)) {
+        logger.warn(`Blocked unsafe webhook URL: ${webhookConfig.url}`);
+        return;
+      }
 
       const response = await fetch(webhookConfig.url, {
         method: 'POST',
