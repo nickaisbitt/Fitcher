@@ -212,13 +212,21 @@ class MarketDataController {
     }
 
     // Calculate aggregated metrics
-    const totalVolume = prices.reduce((sum, p) => sum + p.volume, 0);
-    const vwap = totalVolume > 0 
-      ? prices.reduce((sum, p) => sum + (p.price * p.volume), 0) / totalVolume 
-      : 0;
+    let totalVolume = 0;
+    let vwapSum = 0;
+    let bestBid = -Infinity;
+    let bestAsk = Infinity;
 
-    const bestBid = Math.max(...prices.map(p => p.bid));
-    const bestAsk = Math.min(...prices.map(p => p.ask));
+    for (let i = 0; i < prices.length; i++) {
+      const p = prices[i];
+      totalVolume += p.volume;
+      vwapSum += p.price * p.volume;
+      if (p.bid > bestBid) bestBid = p.bid;
+      if (p.ask < bestAsk) bestAsk = p.ask;
+    }
+
+    const vwap = totalVolume > 0 ? vwapSum / totalVolume : 0;
+
     const spread = bestAsk - bestBid;
     const spreadPercent = bestBid > 0 ? (spread / bestBid) * 100 : 0;
 
