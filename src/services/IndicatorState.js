@@ -84,18 +84,21 @@ class IndicatorState {
   /** Incremental SMA with ring buffer */
   _updateSMA(name, close, period) {
     if (!this.smas[name]) {
-      this.smas[name] = { buffer: [], sum: 0, value: null };
+      this.smas[name] = { buffer: new Array(period), head: 0, count: 0, sum: 0, value: null };
     }
     const state = this.smas[name];
 
-    state.buffer.push(close);
-    state.sum += close;
-
-    if (state.buffer.length > period) {
-      state.sum -= state.buffer.shift();
+    if (state.count === period) {
+      state.sum -= state.buffer[state.head];
+    } else {
+      state.count++;
     }
 
-    state.value = state.buffer.length >= period ? state.sum / period : null;
+    state.buffer[state.head] = close;
+    state.sum += close;
+    state.head = (state.head + 1) % period;
+
+    state.value = state.count === period ? state.sum / period : null;
   }
 
   /** Wilder's RSI with exponential smoothing */
@@ -132,17 +135,26 @@ class IndicatorState {
   /** Bollinger Bands with running sum and sum-of-squares */
   _updateBollinger(close) {
     const s = this.bb;
-    s.buffer.push(close);
-    s.sum += close;
-    s.sumSq += close * close;
-
-    if (s.buffer.length > s.period) {
-      const removed = s.buffer.shift();
-      s.sum -= removed;
-      s.sumSq -= removed * removed;
+    if (s.head === undefined) {
+      s.head = 0;
+      s.count = 0;
+      s.buffer = new Array(s.period);
     }
 
-    if (s.buffer.length >= s.period) {
+    if (s.count === s.period) {
+      const removed = s.buffer[s.head];
+      s.sum -= removed;
+      s.sumSq -= removed * removed;
+    } else {
+      s.count++;
+    }
+
+    s.buffer[s.head] = close;
+    s.sum += close;
+    s.sumSq += close * close;
+    s.head = (s.head + 1) % s.period;
+
+    if (s.count === s.period) {
       const mean = s.sum / s.period;
       const variance = (s.sumSq / s.period) - (mean * mean);
       const std = Math.sqrt(Math.max(0, variance)); // guard against floating point
