@@ -50,4 +50,14 @@ if (missingVars.length > 0) {
   }
 }
 
+if (config.FRONTEND_URL === '*' || config.FRONTEND_URL === 'null') {
+  console.error('CRITICAL SECURITY ERROR: FRONTEND_URL cannot be a wildcard (*) or null origin');
+  if (config.NODE_ENV === 'production') {
+    process.exit(1);
+  } else {
+    console.warn('Overriding insecure FRONTEND_URL in development mode');
+    config.FRONTEND_URL = 'http://localhost:3000';
+  }
+}
+
 module.exports = config;
