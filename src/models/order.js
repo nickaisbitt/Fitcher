@@ -112,15 +112,17 @@ class Order {
       side: trade.side || this.side
     });
 
-    // Recalculate filled amount and average price
-    const totalFilled = this.trades.reduce((sum, t) => sum + t.amount, 0);
-    const totalValue = this.trades.reduce((sum, t) => sum + (t.price * t.amount), 0);
-    const totalFee = this.trades.reduce((sum, t) => sum + t.fee, 0);
+    // Update incrementally instead of re-reducing entire history
+    this.filledAmount += trade.amount;
+    this.fee += trade.fee;
 
-    this.filledAmount = totalFilled;
-    this.remainingAmount = this.amount - totalFilled;
-    this.averagePrice = totalFilled > 0 ? totalValue / totalFilled : null;
-    this.fee = totalFee;
+    // Recalculate average price incrementally
+    // Track total value separately to maintain O(1)
+    this._totalValue = (this._totalValue || 0) + (trade.price * trade.amount);
+    const totalValue = this._totalValue;
+
+    this.remainingAmount = this.amount - this.filledAmount;
+    this.averagePrice = this.filledAmount > 0 ? totalValue / this.filledAmount : null;
 
     // Update status based on fill
     if (this.remainingAmount <= 0) {
