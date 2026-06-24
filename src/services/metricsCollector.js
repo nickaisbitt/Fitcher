@@ -292,7 +292,9 @@ class MetricsCollector {
       return { avg: 0, min: 0, max: 0, p95: 0, p99: 0 };
     }
     
-    const values = latencies.map(l => l.value).sort((a, b) => a - b);
+    const values = new Float64Array(latencies.length);
+    for(let i=0; i<latencies.length; i++) values[i] = latencies[i].value;
+    values.sort();
     
     return {
       avg: values.reduce((a, b) => a + b, 0) / values.length,

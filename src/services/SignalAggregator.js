@@ -177,28 +177,26 @@ class SignalAggregator {
       };
     });
 
-    // Calculate weighted average confidence
-    const totalWeight = weightedSignals.reduce((sum, s) => sum + s.weight, 0);
-    const weightedConfidence = weightedSignals.reduce(
-      (sum, s) => sum + (s.confidence * s.weight), 0
-    ) / totalWeight;
+    let totalWeight = 0;
+    let weightedConfidenceSum = 0;
+    let weightedSizeSum = 0;
+    const allReasons = [];
+    const stopLosses = [];
+    const takeProfits = [];
 
-    // Combine position sizes (weighted average)
-    const weightedSize = weightedSignals.reduce(
-      (sum, s) => sum + ((s.amount || 0) * s.weight), 0
-    ) / totalWeight;
+    for (let i = 0; i < weightedSignals.length; i++) {
+      const s = weightedSignals[i];
+      totalWeight += s.weight;
+      weightedConfidenceSum += s.confidence * s.weight;
+      weightedSizeSum += (s.amount || 0) * s.weight;
+      allReasons.push(`${s.strategy}: ${s.reason}`);
+      if (s.stopLoss !== undefined) stopLosses.push(s.stopLoss);
+      if (s.takeProfit !== undefined) takeProfits.push(s.takeProfit);
+    }
 
-    // Combine reasons
-    const allReasons = weightedSignals.map(s => `${s.strategy}: ${s.reason}`);
+    const weightedConfidence = totalWeight > 0 ? weightedConfidenceSum / totalWeight : 0;
+    const weightedSize = totalWeight > 0 ? weightedSizeSum / totalWeight : 0;
     const uniqueReasons = [...new Set(allReasons)];
-
-    // Select best stops (most conservative)
-    const stopLosses = weightedSignals
-      .filter(s => s.stopLoss)
-      .map(s => s.stopLoss);
-    const takeProfits = weightedSignals
-      .filter(s => s.takeProfit)
-      .map(s => s.takeProfit);
 
     const stopLoss = action === 'buy' 
       ? Math.max(...stopLosses, 0)  // Highest stop for buys
