@@ -311,9 +311,16 @@ class StrategyOptimizer {
    */
   stdDev(values) {
     if (values.length < 2) return 0;
-    const avg = this.average(values);
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
-    return Math.sqrt(variance);
+    let count = 0;
+    let mean = 0;
+    let m2 = 0;
+    for (let i = 0; i < values.length; i++) {
+      count++;
+      const delta = values[i] - mean;
+      mean += delta / count;
+      m2 += delta * (values[i] - mean);
+    }
+    return Math.sqrt(m2 / values.length);
   }
 
   /**
