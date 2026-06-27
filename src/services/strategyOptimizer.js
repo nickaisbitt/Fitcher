@@ -302,7 +302,10 @@ class StrategyOptimizer {
    */
   average(values) {
     if (values.length === 0) return 0;
-    return values.reduce((a, b) => a + b, 0) / values.length;
+    let sum = 0;
+    const len = values.length;
+    for (let i = 0; i < len; i++) sum += values[i];
+    return sum / len;
   }
 
   /**
@@ -312,7 +315,13 @@ class StrategyOptimizer {
   stdDev(values) {
     if (values.length < 2) return 0;
     const avg = this.average(values);
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
+    let sumSq = 0;
+    const len = values.length;
+    for (let i = 0; i < len; i++) {
+      const diff = values[i] - avg;
+      sumSq += diff * diff;
+    }
+    const variance = sumSq / len;
     return Math.sqrt(variance);
   }
 
@@ -357,8 +366,12 @@ class StrategyOptimizer {
     }
     
     // Check for sufficient trades
-    const avgTrades = results.splits.reduce((sum, s) => 
-      sum + (s.testResult?.totalTrades || 0), 0) / results.splits.length;
+    let totalTrades = 0;
+    const splitsLen = results.splits.length;
+    for (let i = 0; i < splitsLen; i++) {
+      totalTrades += (results.splits[i].testResult?.totalTrades || 0);
+    }
+    const avgTrades = totalTrades / splitsLen;
     
     if (avgTrades < this.config.minTrades) {
       recommendations.push({

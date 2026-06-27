@@ -202,12 +202,16 @@ class PositionManager {
           ? position.trades.filter(t => new Date(t.timestamp) >= cutoffDate)
           : position.trades;
         
-        const realizedFromTrades = relevantTrades
-          .filter(t => t.type === 'sell')
-          .reduce((sum, t) => sum + (t.realizedPnL || 0), 0);
-        
-        const feesFromTrades = relevantTrades
-          .reduce((sum, t) => sum + (t.fee || 0), 0);
+        let realizedFromTrades = 0;
+        let feesFromTrades = 0;
+        const tradesLen = relevantTrades.length;
+        for (let j = 0; j < tradesLen; j++) {
+          const t = relevantTrades[j];
+          if (t.type === 'sell') {
+            realizedFromTrades += (t.realizedPnL || 0);
+          }
+          feesFromTrades += (t.fee || 0);
+        }
         
         totalRealized += realizedFromTrades;
         totalFees += feesFromTrades;
@@ -298,10 +302,15 @@ class PositionManager {
       }
       
       // Calculate allocation percentages
-      const totalValue = metrics.reduce((sum, m) => sum + m.currentValue, 0);
-      metrics.forEach(m => {
-        m.allocation = totalValue > 0 ? (m.currentValue / totalValue) * 100 : 0;
-      });
+      let totalValue = 0;
+      const metricsLen = metrics.length;
+      for (let j = 0; j < metricsLen; j++) {
+        totalValue += metrics[j].currentValue;
+      }
+
+      for (let j = 0; j < metricsLen; j++) {
+        metrics[j].allocation = totalValue > 0 ? (metrics[j].currentValue / totalValue) * 100 : 0;
+      }
       
       return metrics.sort((a, b) => b.currentValue - a.currentValue);
     } catch (error) {
