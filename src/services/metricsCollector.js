@@ -294,8 +294,12 @@ class MetricsCollector {
     
     const values = latencies.map(l => l.value).sort((a, b) => a - b);
     
+    let sum = 0;
+    const len = values.length;
+    for (let j = 0; j < len; j++) sum += values[j];
+
     return {
-      avg: values.reduce((a, b) => a + b, 0) / values.length,
+      avg: sum / len,
       min: values[0],
       max: values[values.length - 1],
       p95: values[Math.floor(values.length * 0.95)],
@@ -360,11 +364,15 @@ class MetricsCollector {
     // Calculate stats for each group
     const stats = {};
     for (const [key, items] of Object.entries(groups)) {
-      const pnls = items.map(i => i.pnl || 0);
+      let totalPnl = 0;
+      const len = items.length;
+      for (let j = 0; j < len; j++) {
+        totalPnl += (items[j].pnl || 0);
+      }
       stats[key] = {
-        count: items.length,
-        totalPnl: pnls.reduce((a, b) => a + b, 0),
-        avgPnl: pnls.reduce((a, b) => a + b, 0) / items.length
+        count: len,
+        totalPnl: totalPnl,
+        avgPnl: totalPnl / len
       };
     }
     
