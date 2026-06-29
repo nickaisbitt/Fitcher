@@ -112,15 +112,18 @@ class Order {
       side: trade.side || this.side
     });
 
-    // Recalculate filled amount and average price
-    const totalFilled = this.trades.reduce((sum, t) => sum + t.amount, 0);
-    const totalValue = this.trades.reduce((sum, t) => sum + (t.price * t.amount), 0);
-    const totalFee = this.trades.reduce((sum, t) => sum + t.fee, 0);
+    // Recalculate filled amount and average price incrementally
+    const tradeAmount = parseFloat(trade.amount);
+    const tradePrice = parseFloat(trade.price);
+    const tradeFee = parseFloat(trade.fee) || 0;
 
-    this.filledAmount = totalFilled;
-    this.remainingAmount = this.amount - totalFilled;
-    this.averagePrice = totalFilled > 0 ? totalValue / totalFilled : null;
-    this.fee = totalFee;
+    const currentTotalValue = (this.averagePrice || 0) * (this.filledAmount || 0);
+    const newTotalValue = currentTotalValue + (tradePrice * tradeAmount);
+
+    this.filledAmount = (this.filledAmount || 0) + tradeAmount;
+    this.remainingAmount = this.amount - this.filledAmount;
+    this.averagePrice = this.filledAmount > 0 ? newTotalValue / this.filledAmount : null;
+    this.fee = (this.fee || 0) + tradeFee;
 
     // Update status based on fill
     if (this.remainingAmount <= 0) {

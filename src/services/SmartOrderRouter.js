@@ -269,9 +269,18 @@ class SmartOrderRouter {
         returns.push(ret);
       }
       
-      // Calculate standard deviation
-      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-      const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+      // Calculate standard deviation using Welford's online algorithm
+      let count = 0;
+      let mean = 0;
+      let M2 = 0;
+      for (let i = 0; i < returns.length; i++) {
+        count++;
+        const delta = returns[i] - mean;
+        mean += delta / count;
+        const delta2 = returns[i] - mean;
+        M2 += delta * delta2;
+      }
+      const variance = count > 0 ? M2 / count : 0;
       const stdDev = Math.sqrt(variance);
       
       return stdDev;
