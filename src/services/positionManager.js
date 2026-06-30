@@ -297,11 +297,16 @@ class PositionManager {
         }
       }
       
+      // ⚡ Bolt: Replaced O(N) reduce chain with native for-loops to eliminate GC overhead in metrics calculation.
       // Calculate allocation percentages
-      const totalValue = metrics.reduce((sum, m) => sum + m.currentValue, 0);
-      metrics.forEach(m => {
-        m.allocation = totalValue > 0 ? (m.currentValue / totalValue) * 100 : 0;
-      });
+      let totalValue = 0;
+      for (let i = 0; i < metrics.length; i++) {
+        totalValue += metrics[i].currentValue;
+      }
+
+      for (let i = 0; i < metrics.length; i++) {
+        metrics[i].allocation = totalValue > 0 ? (metrics[i].currentValue / totalValue) * 100 : 0;
+      }
       
       return metrics.sort((a, b) => b.currentValue - a.currentValue);
     } catch (error) {
