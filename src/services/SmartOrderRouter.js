@@ -269,9 +269,20 @@ class SmartOrderRouter {
         returns.push(ret);
       }
       
+      // ⚡ Bolt: Using Welford's algorithm for O(N) single-pass variance calculation to reduce CPU overhead.
       // Calculate standard deviation
-      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-      const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+      let sum = 0;
+      let m2 = 0;
+      for (let i = 0; i < returns.length; i++) {
+        const val = returns[i];
+        const prevMean = sum / (i === 0 ? 1 : i);
+        sum += val;
+        const currentMean = sum / (i + 1);
+        if (i > 0) {
+          m2 += (val - prevMean) * (val - currentMean);
+        }
+      }
+      const variance = m2 / returns.length;
       const stdDev = Math.sqrt(variance);
       
       return stdDev;
@@ -291,8 +302,15 @@ class SmartOrderRouter {
       const orderBook = await this.priceFeed.getOrderBook(pair);
       if (!orderBook) return 'medium';
       
-      const totalBidVolume = orderBook.bids.reduce((sum, bid) => sum + bid[1], 0);
-      const totalAskVolume = orderBook.asks.reduce((sum, ask) => sum + ask[1], 0);
+      // ⚡ Bolt: Single-pass iteration to eliminate multiple chained O(N) array method dispatch overheads.
+      let totalBidVolume = 0;
+      for (let i = 0; i < orderBook.bids.length; i++) {
+        totalBidVolume += orderBook.bids[i][1];
+      }
+      let totalAskVolume = 0;
+      for (let i = 0; i < orderBook.asks.length; i++) {
+        totalAskVolume += orderBook.asks[i][1];
+      }
       const totalVolume = totalBidVolume + totalAskVolume;
       
       if (totalVolume > 100) return 'high';

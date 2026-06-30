@@ -28,6 +28,8 @@ class Order {
     this.metadata = params.metadata || {};
     this.strategyId = params.strategyId || null;
     this.notes = params.notes || '';
+
+    this._totalValue = 0;
   }
 
   // Calculate order value
@@ -103,25 +105,27 @@ class Order {
 
   // Add trade to order
   addTrade(trade) {
+    const tradeAmount = parseFloat(trade.amount);
+    const tradePrice = parseFloat(trade.price);
+    const tradeFee = parseFloat(trade.fee) || 0;
+
     this.trades.push({
       tradeId: trade.tradeId || uuidv4(),
-      price: parseFloat(trade.price),
-      amount: parseFloat(trade.amount),
-      fee: parseFloat(trade.fee) || 0,
+      price: tradePrice,
+      amount: tradeAmount,
+      fee: tradeFee,
       timestamp: trade.timestamp || new Date(),
       side: trade.side || this.side
     });
 
-    // Recalculate filled amount and average price
-    const totalFilled = this.trades.reduce((sum, t) => sum + t.amount, 0);
-    const totalValue = this.trades.reduce((sum, t) => sum + (t.price * t.amount), 0);
-    const totalFee = this.trades.reduce((sum, t) => sum + t.fee, 0);
+    this.filledAmount += tradeAmount;
+    this._totalValue += (tradePrice * tradeAmount);
+    this.fee += tradeFee;
 
-    this.filledAmount = totalFilled;
-    this.remainingAmount = this.amount - totalFilled;
-    this.averagePrice = totalFilled > 0 ? totalValue / totalFilled : null;
-    this.fee = totalFee;
+    this.remainingAmount = this.amount - this.filledAmount;
+    this.averagePrice = this.filledAmount > 0 ? this._totalValue / this.filledAmount : null;
 
+    // ⚡ Bolt: O(1) incremental state updates replace O(N) array loops to prevent bottleneck during heavy trade processing.
     // Update status based on fill
     if (this.remainingAmount <= 0) {
       this.updateStatus('filled');
@@ -233,6 +237,9 @@ class Order {
     order.cancelledAt = json.cancelledAt ? new Date(json.cancelledAt) : null;
     order.externalOrderId = json.externalOrderId;
     order.trades = json.trades || [];
+
+    // Re-hydrate the incremental state correctly from stored trades
+    order._totalValue = order.trades.reduce((sum, t) => sum + (t.price * t.amount), 0);
 
     return order;
   }
