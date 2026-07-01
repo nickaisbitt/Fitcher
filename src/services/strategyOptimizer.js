@@ -311,8 +311,17 @@ class StrategyOptimizer {
    */
   stdDev(values) {
     if (values.length < 2) return 0;
-    const avg = this.average(values);
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
+    // Optimization: Welford's online algorithm for single-pass O(N) stdDev calculation
+    // Replaces previous O(N) chained multiple reduce() calls to reduce array iterations
+    let count = 0, mean = 0, m2 = 0;
+    for (let i = 0; i < values.length; i++) {
+      count++;
+      const delta = values[i] - mean;
+      mean += delta / count;
+      const delta2 = values[i] - mean;
+      m2 += delta * delta2;
+    }
+    const variance = count > 1 ? m2 / count : 0;
     return Math.sqrt(variance);
   }
 
