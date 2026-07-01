@@ -18,6 +18,7 @@ class Order {
     this.remainingAmount = this.amount;
     this.averagePrice = null;
     this.fee = 0;
+    this._totalValue = 0;
     this.feeCurrency = params.pair ? params.pair.split('/')[1] : 'USD';
     this.createdAt = new Date();
     this.updatedAt = new Date();
@@ -103,24 +104,26 @@ class Order {
 
   // Add trade to order
   addTrade(trade) {
+    const price = parseFloat(trade.price);
+    const amount = parseFloat(trade.amount);
+    const fee = parseFloat(trade.fee) || 0;
+
     this.trades.push({
       tradeId: trade.tradeId || uuidv4(),
-      price: parseFloat(trade.price),
-      amount: parseFloat(trade.amount),
-      fee: parseFloat(trade.fee) || 0,
+      price: price,
+      amount: amount,
+      fee: fee,
       timestamp: trade.timestamp || new Date(),
       side: trade.side || this.side
     });
 
-    // Recalculate filled amount and average price
-    const totalFilled = this.trades.reduce((sum, t) => sum + t.amount, 0);
-    const totalValue = this.trades.reduce((sum, t) => sum + (t.price * t.amount), 0);
-    const totalFee = this.trades.reduce((sum, t) => sum + t.fee, 0);
+    // O(1) running calculations instead of O(N) array reduction
+    this.filledAmount += amount;
+    this._totalValue += (price * amount);
+    this.fee += fee;
 
-    this.filledAmount = totalFilled;
-    this.remainingAmount = this.amount - totalFilled;
-    this.averagePrice = totalFilled > 0 ? totalValue / totalFilled : null;
-    this.fee = totalFee;
+    this.remainingAmount = this.amount - this.filledAmount;
+    this.averagePrice = this.filledAmount > 0 ? this._totalValue / this.filledAmount : null;
 
     // Update status based on fill
     if (this.remainingAmount <= 0) {
@@ -233,6 +236,9 @@ class Order {
     order.cancelledAt = json.cancelledAt ? new Date(json.cancelledAt) : null;
     order.externalOrderId = json.externalOrderId;
     order.trades = json.trades || [];
+
+    // Rehydrate internal tracking state
+    order._totalValue = order.filledAmount && order.averagePrice ? order.filledAmount * order.averagePrice : 0;
 
     return order;
   }
