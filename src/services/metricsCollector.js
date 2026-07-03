@@ -347,25 +347,22 @@ class MetricsCollector {
    * @param {string} key - Key to group by
    */
   groupBy(array, key) {
-    const groups = {};
+    const stats = {};
     
-    for (const item of array) {
-      const value = item[key] || 'unknown';
-      if (!groups[value]) {
-        groups[value] = [];
+    for (let i = 0; i < array.length; i++) {
+      const item = array[i];
+      const k = item[key] || 'unknown';
+      if (!stats[k]) {
+        stats[k] = { count: 0, totalPnl: 0, avgPnl: 0 };
       }
-      groups[value].push(item);
+      stats[k].count++;
+      stats[k].totalPnl += (item.pnl || 0);
     }
     
-    // Calculate stats for each group
-    const stats = {};
-    for (const [key, items] of Object.entries(groups)) {
-      const pnls = items.map(i => i.pnl || 0);
-      stats[key] = {
-        count: items.length,
-        totalPnl: pnls.reduce((a, b) => a + b, 0),
-        avgPnl: pnls.reduce((a, b) => a + b, 0) / items.length
-      };
+    for (const k in stats) {
+      if (stats[k].count > 0) {
+        stats[k].avgPnl = stats[k].totalPnl / stats[k].count;
+      }
     }
     
     return stats;

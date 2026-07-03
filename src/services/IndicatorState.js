@@ -9,14 +9,14 @@ class IndicatorState {
   constructor() {
     // EMA state: { value, initialized }
     this.emas = {};
-    // SMA state: { buffer, sum, value }
+    // SMA state: { buffer, sum, value, head, count }
     this.smas = {};
     // RSI state (Wilder): { avgGain, avgLoss, prevClose, initialized, count }
     this.rsi = { avgGain: 0, avgLoss: 0, prevClose: null, initialized: false, count: 0, period: 14, value: null };
     // MACD state
     this.macd = { line: null, signal: null, histogram: null };
-    // Bollinger state: { buffer, sum, sumSq }
-    this.bb = { buffer: [], sum: 0, sumSq: 0, period: 20, stdDev: 2, value: null };
+    // Bollinger state: { buffer, sum, sumSq, head, count }
+    this.bb = { buffer: null, sum: 0, sumSq: 0, period: 20, stdDev: 2, value: null, head: 0, count: 0 };
     // Count of candles processed (for warm-up)
     this.candlesProcessed = 0;
   }
@@ -81,21 +81,23 @@ class IndicatorState {
     }
   }
 
-  /** Incremental SMA with ring buffer */
+  /** Incremental SMA with O(1) modulo ring buffer */
   _updateSMA(name, close, period) {
     if (!this.smas[name]) {
-      this.smas[name] = { buffer: [], sum: 0, value: null };
+      this.smas[name] = { buffer: new Array(period).fill(0), sum: 0, value: null, head: 0, count: 0 };
     }
     const state = this.smas[name];
 
-    state.buffer.push(close);
-    state.sum += close;
-
-    if (state.buffer.length > period) {
-      state.sum -= state.buffer.shift();
+    if (state.count < period) {
+      state.buffer[state.count++] = close;
+      state.sum += close;
+    } else {
+      state.sum = state.sum - state.buffer[state.head] + close;
+      state.buffer[state.head] = close;
+      state.head = (state.head + 1) % period;
     }
 
-    state.value = state.buffer.length >= period ? state.sum / period : null;
+    state.value = state.count >= period ? state.sum / period : null;
   }
 
   /** Wilder's RSI with exponential smoothing */
@@ -129,20 +131,24 @@ class IndicatorState {
     }
   }
 
-  /** Bollinger Bands with running sum and sum-of-squares */
+  /** Bollinger Bands with O(1) modulo ring buffer */
   _updateBollinger(close) {
     const s = this.bb;
-    s.buffer.push(close);
-    s.sum += close;
-    s.sumSq += close * close;
+    if (!s.buffer) s.buffer = new Array(s.period).fill(0);
 
-    if (s.buffer.length > s.period) {
-      const removed = s.buffer.shift();
-      s.sum -= removed;
-      s.sumSq -= removed * removed;
+    if (s.count < s.period) {
+      s.buffer[s.count++] = close;
+      s.sum += close;
+      s.sumSq += close * close;
+    } else {
+      const removed = s.buffer[s.head];
+      s.sum = s.sum - removed + close;
+      s.sumSq = s.sumSq - (removed * removed) + (close * close);
+      s.buffer[s.head] = close;
+      s.head = (s.head + 1) % s.period;
     }
 
-    if (s.buffer.length >= s.period) {
+    if (s.count >= s.period) {
       const mean = s.sum / s.period;
       const variance = (s.sumSq / s.period) - (mean * mean);
       const std = Math.sqrt(Math.max(0, variance)); // guard against floating point
