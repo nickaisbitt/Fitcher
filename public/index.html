@@ -4472,6 +4472,7 @@ function KrakenTradingBot() {
 
           <div className="flex items-center gap-3">
             <button
+              aria-label={settings.soundEnabled ? 'Disable sound alerts' : 'Enable sound alerts'}
               onClick={() => setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
               className={`p-2 rounded-lg transition ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
             >
@@ -5623,7 +5624,17 @@ function KrakenTradingBot() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center text-slate-500 py-4">No patterns detected - fetch historical data first</div>
+                      <div className="flex flex-col items-center justify-center text-center py-6">
+                        <div className="text-3xl mb-2">🔍</div>
+                        <div className="text-sm font-semibold text-slate-300 mb-1">No patterns detected</div>
+                        <div className="text-xs text-slate-500 mb-3 max-w-[200px]">Fetch historical data in the Backtest tab to enable pattern detection.</div>
+                        <button
+                          onClick={() => setActiveTab('backtest')}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                        >
+                          Go to Backtest
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -5636,7 +5647,12 @@ function KrakenTradingBot() {
                           <span className="text-slate-400">S{i + 1}</span>
                           <span className="font-mono text-emerald-400">${formatPrice(l.price, selectedPair)}</span>
                         </div>
-                      )) : <div className="text-xs text-slate-500">No levels detected</div>}
+                      )) : (
+                        <div className="flex flex-col items-center justify-center py-2 text-center">
+                          <div className="text-xs text-slate-500 mb-1">No support found</div>
+                          <button onClick={() => setActiveTab('backtest')} className="text-[10px] text-cyan-400 hover:underline">Fetch Data</button>
+                        </div>
+                      )}
                     </div>
                     <div className="bg-slate-900/50 rounded-xl p-3">
                       <div className="text-xs text-red-400 mb-2">Resistance Levels</div>
@@ -5645,7 +5661,12 @@ function KrakenTradingBot() {
                           <span className="text-slate-400">R{i + 1}</span>
                           <span className="font-mono text-red-400">${formatPrice(l.price, selectedPair)}</span>
                         </div>
-                      )) : <div className="text-xs text-slate-500">No levels detected</div>}
+                      )) : (
+                        <div className="flex flex-col items-center justify-center py-2 text-center">
+                          <div className="text-xs text-slate-500 mb-1">No resistance found</div>
+                          <button onClick={() => setActiveTab('backtest')} className="text-[10px] text-cyan-400 hover:underline">Fetch Data</button>
+                        </div>
+                      )}
                     </div>
                   </div>
 
