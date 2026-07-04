@@ -196,18 +196,32 @@ class PositionManager {
           cutoffDate = null;
       }
       
+      const cutoffTimeMs = cutoffDate ? cutoffDate.getTime() : 0;
       for (const position of positions) {
-        // Filter trades by period
-        const relevantTrades = cutoffDate 
-          ? position.trades.filter(t => new Date(t.timestamp) >= cutoffDate)
-          : position.trades;
-        
-        const realizedFromTrades = relevantTrades
-          .filter(t => t.type === 'sell')
-          .reduce((sum, t) => sum + (t.realizedPnL || 0), 0);
-        
-        const feesFromTrades = relevantTrades
-          .reduce((sum, t) => sum + (t.fee || 0), 0);
+        // Calculate metrics using standard loop to avoid array allocations and Date instantiations
+        let realizedFromTrades = 0;
+        let feesFromTrades = 0;
+        let relevantTradesCount = 0;
+
+        for (let i = 0; i < position.trades.length; i++) {
+          const t = position.trades[i];
+          // Use type coercion for strings that look like numbers, or parse it directly
+          // without creating Date objects to satisfy the optimization goal
+          let tTime = t.timestamp;
+          if (typeof tTime === 'string') {
+              tTime = Date.parse(tTime);
+          } else if (tTime instanceof Date) {
+              tTime = tTime.getTime();
+          }
+
+          if (cutoffDate !== null && tTime < cutoffTimeMs) continue;
+
+          relevantTradesCount++;
+          if (t.type === 'sell') {
+            realizedFromTrades += (t.realizedPnL || 0);
+          }
+          feesFromTrades += (t.fee || 0);
+        }
         
         totalRealized += realizedFromTrades;
         totalFees += feesFromTrades;
@@ -224,7 +238,7 @@ class PositionManager {
         
         assetPnL[position.asset].realized += realizedFromTrades;
         assetPnL[position.asset].fees += feesFromTrades;
-        assetPnL[position.asset].trades += relevantTrades.length;
+          assetPnL[position.asset].trades += relevantTradesCount;
       }
       
       return {
