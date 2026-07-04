@@ -4615,12 +4615,12 @@ function KrakenTradingBot() {
                 </select>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs text-slate-500">Stop Loss %</label>
-                    <input type="number" value={settings.stopLoss} onChange={e => setSettings(s => ({ ...s, stopLoss: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
+                    <label htmlFor="stopLoss" className="text-xs text-slate-500">Stop Loss %</label>
+                    <input id="stopLoss" type="number" value={settings.stopLoss} onChange={e => setSettings(s => ({ ...s, stopLoss: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500">Take Profit %</label>
-                    <input type="number" value={settings.takeProfit} onChange={e => setSettings(s => ({ ...s, takeProfit: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
+                    <label htmlFor="takeProfit" className="text-xs text-slate-500">Take Profit %</label>
+                    <input id="takeProfit" type="number" value={settings.takeProfit} onChange={e => setSettings(s => ({ ...s, takeProfit: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
                   </div>
                 </div>
               </div>
@@ -4629,8 +4629,8 @@ function KrakenTradingBot() {
               <div className="space-y-3">
                 <div className="text-sm text-slate-400 font-medium">Risk Management</div>
                 <div>
-                  <label className="text-xs text-slate-500">Trade Size: {settings.tradeSize}%</label>
-                  <input type="range" min="10" max="100" step="5" value={settings.tradeSize} onChange={e => setSettings(s => ({ ...s, tradeSize: +e.target.value }))} className="w-full" />
+                  <label htmlFor="tradeSize" className="text-xs text-slate-500">Trade Size: {settings.tradeSize}%</label>
+                  <input id="tradeSize" type="range" min="10" max="100" step="5" value={settings.tradeSize} onChange={e => setSettings(s => ({ ...s, tradeSize: +e.target.value }))} className="w-full" />
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={settings.trailingStop} onChange={e => setSettings(s => ({ ...s, trailingStop: e.target.checked }))} className="rounded" />
@@ -5014,8 +5014,9 @@ function KrakenTradingBot() {
                     {!backtestConfig.useCustomDate ? (
                       <div className="flex items-center gap-4">
                         <div>
-                          <label className="text-xs text-slate-500">Hours back</label>
+                          <label htmlFor="hoursBack" className="text-xs text-slate-500">Hours back</label>
                           <input
+                            id="hoursBack"
                             type="number"
                             value={backtestConfig.hoursBack}
                             onChange={e => setBacktestConfig(c => ({ ...c, hoursBack: parseInt(e.target.value) || 36 }))}
@@ -5038,8 +5039,9 @@ function KrakenTradingBot() {
                     ) : (
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="text-xs text-slate-500">Start Date/Time</label>
+                          <label htmlFor="customStartDate" className="text-xs text-slate-500">Start Date/Time</label>
                           <input
+                            id="customStartDate"
                             type="datetime-local"
                             value={backtestConfig.customStartDate}
                             onChange={e => setBacktestConfig(c => ({ ...c, customStartDate: e.target.value }))}
@@ -5047,8 +5049,9 @@ function KrakenTradingBot() {
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-slate-500">End Date/Time (optional)</label>
+                          <label htmlFor="customEndDate" className="text-xs text-slate-500">End Date/Time (optional)</label>
                           <input
+                            id="customEndDate"
                             type="datetime-local"
                             value={backtestConfig.customEndDate}
                             onChange={e => setBacktestConfig(c => ({ ...c, customEndDate: e.target.value }))}
@@ -6335,8 +6338,9 @@ function KrakenTradingBot() {
                     <div className="text-sm font-medium mb-3">⚙️ Risk Parameters</div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       <div>
-                        <label className="text-xs text-slate-400">Daily Loss Limit (%)</label>
+                        <label htmlFor="dailyLossLimit" className="text-xs text-slate-400">Daily Loss Limit (%)</label>
                         <input
+                          id="dailyLossLimit"
                           type="number"
                           value={riskManagement.dailyLossLimit * 100}
                           onChange={e => setRiskManagement(r => ({ ...r, dailyLossLimit: parseFloat(e.target.value) / 100 }))}
@@ -6345,8 +6349,9 @@ function KrakenTradingBot() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400">Max Consecutive Losses</label>
+                        <label htmlFor="maxConsecutiveLosses" className="text-xs text-slate-400">Max Consecutive Losses</label>
                         <input
+                          id="maxConsecutiveLosses"
                           type="number"
                           value={riskManagement.maxConsecutiveLosses}
                           onChange={e => setRiskManagement(r => ({ ...r, maxConsecutiveLosses: parseInt(e.target.value) }))}
@@ -6355,8 +6360,9 @@ function KrakenTradingBot() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400">Cooldown Minutes</label>
+                        <label htmlFor="cooldownMinutes" className="text-xs text-slate-400">Cooldown Minutes</label>
                         <input
+                          id="cooldownMinutes"
                           type="number"
                           value={riskManagement.cooldownMinutes}
                           onChange={e => setRiskManagement(r => ({ ...r, cooldownMinutes: parseInt(e.target.value) }))}
@@ -6365,8 +6371,9 @@ function KrakenTradingBot() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400">Base Slippage (%)</label>
+                        <label htmlFor="slippagePercent" className="text-xs text-slate-400">Base Slippage (%)</label>
                         <input
+                          id="slippagePercent"
                           type="number"
                           value={riskManagement.slippagePercent}
                           onChange={e => setRiskManagement(r => ({ ...r, slippagePercent: parseFloat(e.target.value) }))}
@@ -6375,8 +6382,9 @@ function KrakenTradingBot() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400">Max Open Positions</label>
+                        <label htmlFor="maxOpenPositions" className="text-xs text-slate-400">Max Open Positions</label>
                         <input
+                          id="maxOpenPositions"
                           type="number"
                           value={riskManagement.maxOpenPositions}
                           onChange={e => setRiskManagement(r => ({ ...r, maxOpenPositions: parseInt(e.target.value) }))}
@@ -6385,8 +6393,9 @@ function KrakenTradingBot() {
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400">Max Correlated (%)</label>
+                        <label htmlFor="maxCorrelatedExposure" className="text-xs text-slate-400">Max Correlated (%)</label>
                         <input
+                          id="maxCorrelatedExposure"
                           type="number"
                           value={riskManagement.maxCorrelatedExposure * 100}
                           onChange={e => setRiskManagement(r => ({ ...r, maxCorrelatedExposure: parseFloat(e.target.value) / 100 }))}
@@ -6624,7 +6633,17 @@ function KrakenTradingBot() {
                     </button>
                   </div>
                 ) : (
-                  <div className="text-slate-500 text-center py-6">No open position</div>
+                  <div className="flex flex-col items-center justify-center text-center py-6">
+                    <div className="text-4xl mb-3">💼</div>
+                    <div className="text-lg font-medium text-slate-300 mb-1">No open position</div>
+                    <div className="text-sm text-slate-500 mb-4 max-w-xs">Start the trading bot or execute a manual trade to open a position.</div>
+                    <button
+                      onClick={() => executeTrade('buy', selectedPair, 'Manual Open')}
+                      className="px-4 py-2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-sm font-medium hover:bg-emerald-500/30 transition focus-visible:ring-2 focus-visible:ring-emerald-500 focus:outline-none"
+                    >
+                      Open Position
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
