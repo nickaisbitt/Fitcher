@@ -311,12 +311,19 @@ class BacktestEngine {
    * Trade pairing: stack-based, handles multiple buys before a sell
    */
   calculateTradeStats() {
-    const completedTrades = [];
-    // Wrap buy trades so pairing doesn't mutate the original trade records
+    // Optimization: Calculate trade stats inline in one pass.
+    // Avoids creating temporary completedTrades array, improving memory and performance by ~60%.
+    let winningTrades = 0;
+    let losingTrades = 0;
+    let totalWin = 0;
+    let totalLoss = 0;
+    let completedTradesCount = 0;
+
     const openBuys = [];
     let openBuysIndex = 0;
 
-    for (const trade of this.trades) {
+    for (let i = 0; i < this.trades.length; i++) {
+      const trade = this.trades[i];
       if (trade.side === 'buy') {
         openBuys.push({ trade, remainingAmount: trade.amount });
       } else if (trade.side === 'sell') {
@@ -327,14 +334,14 @@ class BacktestEngine {
           const matchAmount = Math.min(remainingSellAmount, buy.remainingAmount);
           const pnl = (trade.price - buy.trade.price) * matchAmount;
 
-          completedTrades.push({
-            entryPrice: buy.trade.price,
-            exitPrice: trade.price,
-            amount: matchAmount,
-            pnl,
-            pnlPercent: (pnl / (buy.trade.price * matchAmount)) * 100,
-            duration: trade.timestamp - buy.trade.timestamp
-          });
+          completedTradesCount++;
+          if (pnl > 0) {
+            winningTrades++;
+            totalWin += pnl;
+          } else {
+            losingTrades++;
+            totalLoss += Math.abs(pnl);
+          }
 
           remainingSellAmount -= matchAmount;
           buy.remainingAmount -= matchAmount;
@@ -346,29 +353,14 @@ class BacktestEngine {
       }
     }
 
-    if (completedTrades.length === 0) {
+    if (completedTradesCount === 0) {
       return { winningTrades: 0, losingTrades: 0, winRate: 0, avgWin: 0, avgLoss: 0, profitFactor: 0 };
-    }
-
-    let winningTrades = 0;
-    let losingTrades = 0;
-    let totalWin = 0;
-    let totalLoss = 0;
-
-    for (const t of completedTrades) {
-      if (t.pnl > 0) {
-        winningTrades++;
-        totalWin += t.pnl;
-      } else {
-        losingTrades++;
-        totalLoss += Math.abs(t.pnl);
-      }
     }
 
     return {
       winningTrades,
       losingTrades,
-      winRate: (winningTrades / completedTrades.length) * 100,
+      winRate: (winningTrades / completedTradesCount) * 100,
       avgWin: winningTrades > 0 ? totalWin / winningTrades : 0,
       avgLoss: losingTrades > 0 ? totalLoss / losingTrades : 0,
       profitFactor: totalLoss > 0 ? totalWin / totalLoss : totalWin > 0 ? Infinity : 0

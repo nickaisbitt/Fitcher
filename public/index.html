@@ -341,15 +341,29 @@ const calculateRSI = (prices, period = 14) => {
 const calculateMACD = (prices, fast = 12, slow = 26, signalPeriod = 9) => {
   if (!prices || prices.length < slow + signalPeriod) return { macd: 0, signal: 0, histogram: 0, trend: 'neutral' };
 
-  // Calculate MACD line history for proper signal line EMA
-  const macdHistory = [];
-  for (let i = slow; i <= prices.length; i++) {
-    const slice = prices.slice(0, i);
-    const ema12 = calculateEMA(slice, fast);
-    const ema26 = calculateEMA(slice, slow);
-    if (ema12 !== null && ema26 !== null) {
-      macdHistory.push(ema12 - ema26);
-    }
+  // Optimization: O(N) iterative calculation of MACD line instead of O(N^2) repeated array slicing
+  // Calculates EMA incrementally inline, avoiding repeated allocations.
+  let emaFast = 0;
+  for (let i = 0; i < fast; i++) emaFast += prices[i];
+  emaFast /= fast;
+
+  const kFast = 2 / (fast + 1);
+  for (let i = fast; i < slow; i++) {
+    emaFast = prices[i] * kFast + emaFast * (1 - kFast);
+  }
+
+  let emaSlow = 0;
+  for (let i = 0; i < slow; i++) emaSlow += prices[i];
+  emaSlow /= slow;
+
+  const kSlow = 2 / (slow + 1);
+
+  const macdHistory = [emaFast - emaSlow];
+
+  for (let i = slow; i < prices.length; i++) {
+    emaFast = prices[i] * kFast + emaFast * (1 - kFast);
+    emaSlow = prices[i] * kSlow + emaSlow * (1 - kSlow);
+    macdHistory.push(emaFast - emaSlow);
   }
 
   // Signal line is 9-period EMA of MACD line (PROPER calculation)
@@ -357,7 +371,6 @@ const calculateMACD = (prices, fast = 12, slow = 26, signalPeriod = 9) => {
   const macdLine = macdHistory[macdHistory.length - 1] || 0;
   const histogram = macdLine - signalLine;
 
-  // Trend detection
   const prevHistogram = macdHistory.length > 1 ? macdHistory[macdHistory.length - 2] - (signalLine * 0.95) : 0;
   const trend = histogram > 0 && histogram > prevHistogram ? 'bullish' :
                 histogram < 0 && histogram < prevHistogram ? 'bearish' : 'neutral';
