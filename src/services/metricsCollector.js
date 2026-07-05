@@ -206,13 +206,24 @@ class MetricsCollector {
   trimOldData(dataArray) {
     const cutoff = Date.now() - this.config.retentionPeriod;
     
+    // Optimization: Binary search for the cutoff index instead of linear scan.
+    // Drops search complexity from O(N) to O(log N) for large metrics arrays.
+    let left = 0;
+    let right = dataArray.length - 1;
     let shiftCount = 0;
-    while (shiftCount < dataArray.length && dataArray[shiftCount].timestamp < cutoff) {
-      shiftCount++;
+
+    while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+        if (dataArray[mid].timestamp < cutoff) {
+            shiftCount = mid + 1;
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
     }
     
     if (dataArray.length - shiftCount > this.config.maxDataPoints) {
-      shiftCount = dataArray.length - this.config.maxDataPoints;
+      shiftCount = Math.max(shiftCount, dataArray.length - this.config.maxDataPoints);
     }
 
     if (shiftCount > 0) {
