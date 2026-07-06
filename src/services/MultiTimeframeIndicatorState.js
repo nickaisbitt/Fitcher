@@ -74,17 +74,28 @@ class MultiTimeframeIndicatorState {
    */
   buildHigherTimeframeCandle(timeframe, multiplier) {
     const baseCandles = this.candleBuffers['15m'];
-    if (baseCandles.length < multiplier) return null;
+    const len = baseCandles.length;
+    if (len < multiplier) return null;
     
-    const recentCandles = baseCandles.slice(-multiplier);
+    const startIdx = len - multiplier;
+    let high = -Infinity;
+    let low = Infinity;
+    let volume = 0;
+
+    for (let i = startIdx; i < len; i++) {
+      const c = baseCandles[i];
+      if (c.high > high) high = c.high;
+      if (c.low < low) low = c.low;
+      volume += (c.volume || 0);
+    }
     
     return {
-      timestamp: recentCandles[recentCandles.length - 1].timestamp,
-      open: recentCandles[0].open,
-      high: Math.max(...recentCandles.map(c => c.high)),
-      low: Math.min(...recentCandles.map(c => c.low)),
-      close: recentCandles[recentCandles.length - 1].close,
-      volume: recentCandles.reduce((sum, c) => sum + (c.volume || 0), 0)
+      timestamp: baseCandles[len - 1].timestamp,
+      open: baseCandles[startIdx].open,
+      high,
+      low,
+      close: baseCandles[len - 1].close,
+      volume
     };
   }
 

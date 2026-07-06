@@ -326,14 +326,20 @@ class SignalAggregator {
    * Select best trailing stop from component signals
    */
   selectTrailingStop(signals) {
-    const stops = signals
-      .filter(s => s.trailingStop)
-      .map(s => s.trailingStop);
+    let sum = 0;
+    let count = 0;
     
-    if (stops.length === 0) return undefined;
+    for (let i = 0; i < signals.length; i++) {
+      if (signals[i].trailingStop !== undefined) {
+        sum += signals[i].trailingStop;
+        count++;
+      }
+    }
+
+    if (count === 0) return undefined;
     
     // Use average
-    return stops.reduce((sum, s) => sum + s, 0) / stops.length;
+    return sum / count;
   }
 
   /**
