@@ -4472,6 +4472,7 @@ function KrakenTradingBot() {
 
           <div className="flex items-center gap-3">
             <button
+              aria-label={settings.soundEnabled ? 'Disable sound alerts' : 'Enable sound alerts'}
               onClick={() => setSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
               className={`p-2 rounded-lg transition ${settings.soundEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-500'}`}
             >
@@ -4615,12 +4616,12 @@ function KrakenTradingBot() {
                 </select>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs text-slate-500">Stop Loss %</label>
-                    <input type="number" value={settings.stopLoss} onChange={e => setSettings(s => ({ ...s, stopLoss: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
+                    <label htmlFor="stop-loss" className="text-xs text-slate-500">Stop Loss %</label>
+                    <input id="stop-loss" type="number" value={settings.stopLoss} onChange={e => setSettings(s => ({ ...s, stopLoss: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500">Take Profit %</label>
-                    <input type="number" value={settings.takeProfit} onChange={e => setSettings(s => ({ ...s, takeProfit: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
+                    <label htmlFor="take-profit" className="text-xs text-slate-500">Take Profit %</label>
+                    <input id="take-profit" type="number" value={settings.takeProfit} onChange={e => setSettings(s => ({ ...s, takeProfit: +e.target.value }))} className="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-2 text-sm" />
                   </div>
                 </div>
               </div>
@@ -4629,8 +4630,8 @@ function KrakenTradingBot() {
               <div className="space-y-3">
                 <div className="text-sm text-slate-400 font-medium">Risk Management</div>
                 <div>
-                  <label className="text-xs text-slate-500">Trade Size: {settings.tradeSize}%</label>
-                  <input type="range" min="10" max="100" step="5" value={settings.tradeSize} onChange={e => setSettings(s => ({ ...s, tradeSize: +e.target.value }))} className="w-full" />
+                  <label htmlFor="trade-size" className="text-xs text-slate-500">Trade Size: {settings.tradeSize}%</label>
+                  <input id="trade-size" type="range" min="10" max="100" step="5" value={settings.tradeSize} onChange={e => setSettings(s => ({ ...s, tradeSize: +e.target.value }))} className="w-full" />
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={settings.trailingStop} onChange={e => setSettings(s => ({ ...s, trailingStop: e.target.checked }))} className="rounded" />
@@ -5523,7 +5524,17 @@ function KrakenTradingBot() {
                   )}
 
                   {scanResults.length === 0 && !isScanning && (
-                    <div className="text-center text-slate-500 py-8">Click "Scan Now" to find trading signals</div>
+                    <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                      <div className="text-4xl mb-4">🔍</div>
+                      <div className="text-lg font-semibold text-slate-300 mb-2">No active signals</div>
+                      <div className="text-sm text-slate-400 max-w-sm mb-6">Scan the market to identify potential trading opportunities across all available pairs.</div>
+                      <button
+                        onClick={runScanner}
+                        className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-cyan-500 focus:outline-none"
+                      >
+                        Scan Market Now
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
