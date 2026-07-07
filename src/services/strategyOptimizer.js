@@ -302,7 +302,11 @@ class StrategyOptimizer {
    */
   average(values) {
     if (values.length === 0) return 0;
-    return values.reduce((a, b) => a + b, 0) / values.length;
+    let sum = 0;
+    for (let i = 0; i < values.length; i++) {
+      sum += values[i];
+    }
+    return sum / values.length;
   }
 
   /**
@@ -312,7 +316,12 @@ class StrategyOptimizer {
   stdDev(values) {
     if (values.length < 2) return 0;
     const avg = this.average(values);
-    const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
+    let sumSq = 0;
+    for (let i = 0; i < values.length; i++) {
+      const diff = values[i] - avg;
+      sumSq += diff * diff;
+    }
+    const variance = sumSq / values.length;
     return Math.sqrt(variance);
   }
 
