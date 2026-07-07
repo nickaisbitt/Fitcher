@@ -360,11 +360,14 @@ class MetricsCollector {
     // Calculate stats for each group
     const stats = {};
     for (const [key, items] of Object.entries(groups)) {
-      const pnls = items.map(i => i.pnl || 0);
+      let totalPnl = 0;
+      for (let i = 0; i < items.length; i++) {
+        totalPnl += items[i].pnl || 0;
+      }
       stats[key] = {
         count: items.length,
-        totalPnl: pnls.reduce((a, b) => a + b, 0),
-        avgPnl: pnls.reduce((a, b) => a + b, 0) / items.length
+        totalPnl: totalPnl,
+        avgPnl: items.length > 0 ? totalPnl / items.length : 0
       };
     }
     

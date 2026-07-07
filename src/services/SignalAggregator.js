@@ -165,40 +165,35 @@ class SignalAggregator {
    * Aggregate signals from one side (all buys or all sells)
    */
   aggregateSide(signals, action) {
-    // Get weights for each strategy
-    const weightedSignals = signals.map(signal => {
+    const weightedSignals = [];
+    let totalWeight = 0;
+    let sumWeightedConfidence = 0;
+    let sumWeightedSize = 0;
+    const allReasons = [];
+    const stopLosses = [];
+    const takeProfits = [];
+
+    // Single pass to gather weighted properties
+    for (let i = 0; i < signals.length; i++) {
+      const signal = signals[i];
       const strategyPerf = this.strategyPerformance.get(signal.strategy);
       const baseWeight = this.config.strategyWeights[signal.strategy] || 1.0;
       const perfWeight = strategyPerf ? strategyPerf.weight : 1.0;
-      
-      return {
-        ...signal,
-        weight: baseWeight * perfWeight
-      };
-    });
+      const weight = baseWeight * perfWeight;
 
-    // Calculate weighted average confidence
-    const totalWeight = weightedSignals.reduce((sum, s) => sum + s.weight, 0);
-    const weightedConfidence = weightedSignals.reduce(
-      (sum, s) => sum + (s.confidence * s.weight), 0
-    ) / totalWeight;
+      weightedSignals.push({ ...signal, weight });
+      totalWeight += weight;
+      sumWeightedConfidence += signal.confidence * weight;
+      sumWeightedSize += (signal.amount || 0) * weight;
+      allReasons.push(`${signal.strategy}: ${signal.reason}`);
 
-    // Combine position sizes (weighted average)
-    const weightedSize = weightedSignals.reduce(
-      (sum, s) => sum + ((s.amount || 0) * s.weight), 0
-    ) / totalWeight;
+      if (signal.stopLoss) stopLosses.push(signal.stopLoss);
+      if (signal.takeProfit) takeProfits.push(signal.takeProfit);
+    }
 
-    // Combine reasons
-    const allReasons = weightedSignals.map(s => `${s.strategy}: ${s.reason}`);
+    const weightedConfidence = totalWeight > 0 ? sumWeightedConfidence / totalWeight : 0;
+    const weightedSize = totalWeight > 0 ? sumWeightedSize / totalWeight : 0;
     const uniqueReasons = [...new Set(allReasons)];
-
-    // Select best stops (most conservative)
-    const stopLosses = weightedSignals
-      .filter(s => s.stopLoss)
-      .map(s => s.stopLoss);
-    const takeProfits = weightedSignals
-      .filter(s => s.takeProfit)
-      .map(s => s.takeProfit);
 
     const stopLoss = action === 'buy' 
       ? Math.max(...stopLosses, 0)  // Highest stop for buys
