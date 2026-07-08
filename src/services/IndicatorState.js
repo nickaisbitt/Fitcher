@@ -84,18 +84,25 @@ class IndicatorState {
   /** Incremental SMA with ring buffer */
   _updateSMA(name, close, period) {
     if (!this.smas[name]) {
-      this.smas[name] = { buffer: [], sum: 0, value: null };
+      this.smas[name] = { buffer: new Array(period), head: 0, isFull: false, sum: 0, value: null };
     }
     const state = this.smas[name];
 
-    state.buffer.push(close);
-    state.sum += close;
-
-    if (state.buffer.length > period) {
-      state.sum -= state.buffer.shift();
+    if (state.isFull) {
+      state.sum = state.sum - state.buffer[state.head] + close;
+      state.buffer[state.head] = close;
+      state.head = (state.head + 1) % period;
+    } else {
+      state.buffer[state.head] = close;
+      state.sum += close;
+      state.head++;
+      if (state.head === period) {
+        state.isFull = true;
+        state.head = 0;
+      }
     }
 
-    state.value = state.buffer.length >= period ? state.sum / period : null;
+    state.value = state.isFull ? state.sum / period : null;
   }
 
   /** Wilder's RSI with exponential smoothing */
@@ -132,17 +139,31 @@ class IndicatorState {
   /** Bollinger Bands with running sum and sum-of-squares */
   _updateBollinger(close) {
     const s = this.bb;
-    s.buffer.push(close);
-    s.sum += close;
-    s.sumSq += close * close;
-
-    if (s.buffer.length > s.period) {
-      const removed = s.buffer.shift();
-      s.sum -= removed;
-      s.sumSq -= removed * removed;
+    if (!s.isInitialized) {
+      s.buffer = new Array(s.period);
+      s.head = 0;
+      s.isFull = false;
+      s.isInitialized = true;
     }
 
-    if (s.buffer.length >= s.period) {
+    if (s.isFull) {
+      const removed = s.buffer[s.head];
+      s.sum = s.sum - removed + close;
+      s.sumSq = s.sumSq - (removed * removed) + (close * close);
+      s.buffer[s.head] = close;
+      s.head = (s.head + 1) % s.period;
+    } else {
+      s.buffer[s.head] = close;
+      s.sum += close;
+      s.sumSq += close * close;
+      s.head++;
+      if (s.head === s.period) {
+        s.isFull = true;
+        s.head = 0;
+      }
+    }
+
+    if (s.isFull) {
       const mean = s.sum / s.period;
       const variance = (s.sumSq / s.period) - (mean * mean);
       const std = Math.sqrt(Math.max(0, variance)); // guard against floating point
