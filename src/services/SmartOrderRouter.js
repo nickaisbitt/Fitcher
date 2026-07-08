@@ -270,8 +270,17 @@ class SmartOrderRouter {
       }
       
       // Calculate standard deviation
-      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-      const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+      let count = 0;
+      let mean = 0;
+      let m2 = 0;
+      for (let j = 0; j < returns.length; j++) {
+        count += 1;
+        const delta = returns[j] - mean;
+        mean += delta / count;
+        const delta2 = returns[j] - mean;
+        m2 += delta * delta2;
+      }
+      const variance = count < 2 ? 0 : m2 / count;
       const stdDev = Math.sqrt(variance);
       
       return stdDev;
@@ -291,8 +300,10 @@ class SmartOrderRouter {
       const orderBook = await this.priceFeed.getOrderBook(pair);
       if (!orderBook) return 'medium';
       
-      const totalBidVolume = orderBook.bids.reduce((sum, bid) => sum + bid[1], 0);
-      const totalAskVolume = orderBook.asks.reduce((sum, ask) => sum + ask[1], 0);
+      let totalBidVolume = 0;
+      for (let j = 0; j < orderBook.bids.length; j++) totalBidVolume += orderBook.bids[j][1];
+      let totalAskVolume = 0;
+      for (let j = 0; j < orderBook.asks.length; j++) totalAskVolume += orderBook.asks[j][1];
       const totalVolume = totalBidVolume + totalAskVolume;
       
       if (totalVolume > 100) return 'high';

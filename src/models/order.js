@@ -25,6 +25,7 @@ class Order {
     this.cancelledAt = null;
     this.externalOrderId = null;
     this.trades = [];
+    this._totalValue = 0;
     this.metadata = params.metadata || {};
     this.strategyId = params.strategyId || null;
     this.notes = params.notes || '';
@@ -113,14 +114,16 @@ class Order {
     });
 
     // Recalculate filled amount and average price
-    const totalFilled = this.trades.reduce((sum, t) => sum + t.amount, 0);
-    const totalValue = this.trades.reduce((sum, t) => sum + (t.price * t.amount), 0);
-    const totalFee = this.trades.reduce((sum, t) => sum + t.fee, 0);
+    const currentAmount = parseFloat(trade.amount);
+    const currentPrice = parseFloat(trade.price);
+    const currentFee = parseFloat(trade.fee) || 0;
 
-    this.filledAmount = totalFilled;
-    this.remainingAmount = this.amount - totalFilled;
-    this.averagePrice = totalFilled > 0 ? totalValue / totalFilled : null;
-    this.fee = totalFee;
+    this.filledAmount += currentAmount;
+    this.remainingAmount -= currentAmount;
+    this._totalValue += (currentPrice * currentAmount);
+    this.fee += currentFee;
+
+    this.averagePrice = this.filledAmount > 0 ? this._totalValue / this.filledAmount : null;
 
     // Update status based on fill
     if (this.remainingAmount <= 0) {
@@ -225,6 +228,7 @@ class Order {
     order.filledAmount = json.filledAmount;
     order.remainingAmount = json.remainingAmount;
     order.averagePrice = json.averagePrice;
+    order._totalValue = (json.filledAmount || 0) * (json.averagePrice || 0);
     order.fee = json.fee;
     order.feeCurrency = json.feeCurrency;
     order.createdAt = new Date(json.createdAt);
